@@ -19,14 +19,28 @@ through the energized rungs.
 - Assignments, `IF` / `ELSIF` / `ELSE`, `CASE`
 - Arithmetic rendered as function blocks (`ADD`, `SUB`, `MUL`, `DIV`)
 - `LIMIT`, `MIN`, `MAX`, `ABS`, `SQRT`, `SEL`
-- Normally-open `[ ]` and normally-closed `[/]` contact gating
+- Normally-open `[ ]` and normally-closed `[/]` contact gating; `AND`
+  conditions draw as series contacts
 - A scan-return path showing the cyclic execution model (`T#100ms`)
 
-**Ladder → Text.** Build rungs with contacts and blocks; generates
-Structured Text as you edit. Detects the complementary-contact pattern
-(`[ ]X` and `[/]X` writing the same tag) and collapses it into a single
-`IF / ELSE`. Warns when a gated rung would leave its output holding a
-stale value — the classic mistake when converting ladder to text by hand.
+**Ladder → Text.** The diagram is editable in place, and the Structured
+Text regenerates as you work:
+
+- Click any contact tag, block pin, or coil to rename or retype it —
+  pins accept full expressions
+- Click a contact symbol to flip `[ ]` ⇄ `[/]`
+- Drag `⋮⋮` to reorder rungs; drag contacts to reorder them in a rung
+- `×` deletes contacts and rungs; `+ rung` and `+[ ]` add them
+
+Diagram edits rewrite the text in flat rung form (comments are dropped).
+Complementary contacts (`[ ]X` and `[/]X` writing the same tag) collapse
+back into a single `IF / ELSE`. A tag written by only one gated rung
+raises a warning — the output would hold a stale value when the contact
+opens, the classic mistake when converting ladder to text by hand.
+
+**Files.** Open a `.st` file (or drop one onto the editor) and export
+your program back to `.st` when you're done. Plain text either way —
+nothing leaves the browser.
 
 **Loops.** `FOR` and `WHILE` cannot be drawn as rungs (a rung is one
 power path evaluated once per scan). The tool explains why and renders
@@ -62,6 +76,7 @@ drawn, by design.
 
 Copyright © 2026 Joshua Ott. All rights reserved. See [LICENSE](LICENSE).
 
-This project is published for viewing, and anyone is welcome to use the
-tool at the hosted link above. The source may not be reused, copied,
-modified, or redistributed without written permission.
+Anyone is welcome to **use** the tool — at the hosted link above or from
+a downloaded copy. The source code may not be copied, modified,
+redistributed, or reused in other projects without written permission.
+
