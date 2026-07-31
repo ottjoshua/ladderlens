@@ -72,9 +72,24 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .rung+.rung{border-top:1px dashed #2b343c}
 .rnote{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.08em;margin-bottom:9px}
 .rnote b{color:var(--rail);font-weight:600}
-.row{display:flex;align-items:center;gap:0;min-width:min-content}
-.w{height:2px;background:var(--wire);flex:0 0 22px}
+/* the rung conductor line sits at a fixed 29px from the row top, so parallel
+   groups can hang branches below while the main line stays straight */
+.row{display:flex;align-items:flex-start;gap:0;min-width:min-content}
+.w{height:2px;background:var(--wire);flex:0 0 22px;margin-top:28px}
 .w.f{flex:1 1 22px;min-width:22px}
+.w.pw{flex:0 0 14px}
+.par{display:flex;align-items:flex-start;flex:0 0 auto}
+.pwrap{position:relative}
+.pbranches{display:flex;flex-direction:column}
+.pbranch{display:flex;align-items:flex-start}
+.pbar{position:absolute;width:2px;background:var(--wire)}
+.pbar.on{background:var(--hot);box-shadow:0 0 5px var(--hot-dim)}
+.pbarL{left:0}
+.pbarR{right:0}
+.parbtns{display:flex;flex-direction:column;gap:3px;margin-top:22px}
+.addbr{background:transparent;border:1px dashed #3a444d;color:var(--dim);border-radius:3px;
+  padding:2px 6px;font-size:10px;margin:0 2px;opacity:.55;flex:0 0 auto}
+.addbr:hover{opacity:1;border-color:var(--rail);color:var(--rail)}
 /* end wires reach across the padding to land on the power rails */
 .row>.w:first-child{margin-left:-15px}
 .row>.w:last-child{margin-right:-13px}
@@ -89,12 +104,12 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .contact.on .ctag{color:var(--hot)}
 .cglyph{display:block;width:30px;height:26px;color:var(--wire)}
 .contact.on .cglyph{color:var(--hot)}
-.blk{flex:0 0 auto;background:var(--blk);border:1px solid var(--blk-edge);border-radius:6px;padding:6px 10px 7px;margin:0 2px}
+.blk{flex:0 0 auto;background:var(--blk);border:1px solid var(--blk-edge);border-radius:6px;padding:6px 10px 7px;margin:6px 2px 0}
 .blk.on{border-color:var(--hot);box-shadow:0 0 0 1px var(--hot-dim)}
 .bname{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--blk-txt);letter-spacing:.1em;text-align:center;margin-bottom:4px}
 .bio{font-family:var(--mono);font-size:10.5px;color:#7fa89a;white-space:nowrap;line-height:1.5}
 .bio i{color:var(--dim);font-style:normal;display:inline-block;width:30px}
-.coil{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;padding:0 4px}
+.coil{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;padding:0 4px;margin-top:8px}
 .ctag2{font-family:var(--mono);font-size:10.5px;color:var(--ink);white-space:nowrap;margin-bottom:4px}
 .coil.on .ctag2{color:var(--hot)}
 .val{font-family:var(--mono);font-size:10px;color:var(--warn);margin-top:4px;white-space:nowrap}
@@ -146,7 +161,7 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .cglyph{cursor:pointer}
 .pinv{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 .addc{background:transparent;border:1px dashed #3a444d;color:var(--dim);border-radius:3px;padding:2px 6px;
-  font-size:10px;margin:0 3px;opacity:.55;flex:0 0 auto}
+  font-size:10px;margin:22px 3px 0;opacity:.55;flex:0 0 auto}
 .addc:hover{opacity:1;border-color:var(--rail);color:var(--rail)}
 input.inline{background:#151a1e;border:1px solid var(--rail);color:var(--ink);font-family:var(--mono);
   font-size:10.5px;padding:2px 5px;border-radius:3px;width:120px}
@@ -207,6 +222,8 @@ select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt
     </div>
     <div class="legend">
       <b>[ ]</b> normally open — passes power when TRUE &nbsp;·&nbsp; <b>[/]</b> normally closed — passes power when FALSE<br>
+      series contacts are <b>AND</b> · parallel branches are <b>OR</b> · <b>+∥</b> adds a branch ·
+      wires light where power actually flows<br>
       <b>green</b> = energized this scan &nbsp;·&nbsp; arithmetic uses function blocks, not operators<br>
       an <b>IF/ELSE</b> in text becomes two rungs gated by the same variable and its complement<br><br>
       <b>the diagram is editable:</b> click a tag, pin, or coil to rename it · click a contact symbol
@@ -555,19 +572,28 @@ function collectTargets(list){
 
 function flatten(prog){
   const rungs=[];
+  let pairId=0;
   function walk(list,guards){
     for(const s of list){
       if(s.k==='vardecl'){ /* not a rung */ }
       else if(s.k==='fbcall') rungs.push({kind:'fb',fb:s,guards:guards.slice()});
       else if(s.k==='assign') rungs.push({target:s.target,expr:s.expr,guards:guards.slice()});
       else if(s.k==='if'){
+        // a genuine single-assignment IF/ELSE pair is tagged so regen can
+        // collapse it back even when the condition reads the written tag —
+        // sequential IFs and IF/ELSE differ exactly in that case
+        const pair = !s.elifs.length && s.then.length===1 && s.alt.length===1
+          && s.then[0].k==='assign' && s.alt[0].k==='assign'
+          && s.then[0].target===s.alt[0].target ? ++pairId : 0;
         walk(s.then, guards.concat([{cond:s.cond,neg:false}]));
+        if(pair) rungs[rungs.length-1].ifPair=pair;
         let acc=[{cond:s.cond,neg:true}];
         for(const e of s.elifs){
           walk(e.body, guards.concat(acc,[{cond:e.cond,neg:false}]));
           acc=acc.concat([{cond:e.cond,neg:true}]);
         }
         if(s.alt.length) walk(s.alt, guards.concat(acc));
+        if(pair) rungs[rungs.length-1].ifPair=pair;
       }
       else if(s.k==='case'){
         let acc=[];
@@ -673,42 +699,84 @@ let programDecls=[];   // VAR-block declarations, preserved through diagram rege
    model can never overwrite newer source text */
 let modelStale=false;
 
-/* one guard level -> one or more contacts. Top-level ANDs split into series
-   contacts (series IS ladder AND); a negated AND stays one NC contact. */
-function normGuards(guards){
+/* conditions -> a ladder contact NETWORK. Series is AND, parallel is OR:
+     elem   := {t:'contact', cond, neg} | {t:'par', branches:[series, ...]}
+     series := elem[]
+   A negated AND/OR stays one NC contact (no De Morgan rewriting). */
+function orTerms(e){
+  return (e.k==='bin'&&e.op==='OR') ? [...orTerms(e.l),...orTerms(e.r)] : [e];
+}
+function toSeries(cond,neg){   // cond must be a private copy — subtrees end up in elems
+  while(cond.k==='not'){ neg=!neg; cond=cond.e; }
+  if(!neg && cond.k==='bin' && cond.op==='AND')
+    return [...toSeries(cond.l,false), ...toSeries(cond.r,false)];
+  if(!neg && cond.k==='bin' && cond.op==='OR')
+    return [{t:'par', branches:orTerms(cond).map(t=>toSeries(t,false))}];
+  return [{t:'contact', cond, neg}];
+}
+function guardsToNet(guards){
   const out=[];
-  const push=(cond,neg)=>{
-    while(cond.k==='not'){ neg=!neg; cond=cond.e; }
-    if(!neg && cond.k==='bin' && cond.op==='AND'){ push(cond.l,false); push(cond.r,false); return; }
-    out.push({cond,neg});
-  };
-  guards.forEach(g=>push(structuredClone(g.cond),g.neg));
+  for(const g of guards) out.push(...toSeries(structuredClone(g.cond), g.neg));
   return out;
+}
+/* network -> expression AST (for regen and rung descriptions) */
+function seriesToExpr(series){
+  let node=null;
+  for(const el of series){
+    let e;
+    if(el.t==='par'){
+      let o=null;
+      for(const br of el.branches){ const be=seriesToExpr(br); if(be) o=o?{k:'bin',op:'OR',l:o,r:be}:be; }
+      e=o||{k:'bool',v:false};
+    } else {
+      e=el.neg?{k:'not',e:structuredClone(el.cond)}:structuredClone(el.cond);
+    }
+    node=node?{k:'bin',op:'AND',l:node,r:e}:e;
+  }
+  return node;
+}
+/* drop empty branches, dissolve one-branch parallels (after deletions) */
+function pruneNet(series){
+  for(let i=series.length-1;i>=0;i--){
+    const el=series[i];
+    if(el.t!=='par') continue;
+    el.branches.forEach(pruneNet);
+    el.branches=el.branches.filter(b=>b.length);
+    if(el.branches.length===1) series.splice(i,1,...el.branches[0]);
+    else if(!el.branches.length) series.splice(i,1);
+  }
+}
+/* resolve a "i.j.k" path (elem index, branch index, elem index, ...) to the
+   containing series and index */
+function netAt(series,path){
+  const p=path.split('.').map(Number);
+  let arr=series;
+  for(let k=0;k+1<p.length;k+=2) arr=arr[p[k]].branches[p[k+1]];
+  return {arr, idx:p[p.length-1]};
 }
 function buildModel(flatRungs){
   return flatRungs.map(r=>{
     if(r.kind==='loop')
-      return {kind:'loop', loop:structuredClone(r.loop), contacts:normGuards(r.guards), targets:r.targets};
+      return {kind:'loop', loop:structuredClone(r.loop), contacts:guardsToNet(r.guards), targets:r.targets};
     if(r.kind==='fb'){
       const s=r.fb, powerArg=FB[s.type].power;
       const args={};
       for(const [k,v] of Object.entries(s.args)) if(k!==powerArg) args[k]=structuredClone(v);
       const power = s.args[powerArg]!==undefined
-        ? normGuards([{cond:s.args[powerArg],neg:false}]) : [];
-      return {kind:'fb', name:s.name, type:s.type, args, power, contacts:normGuards(r.guards)};
+        ? toSeries(structuredClone(s.args[powerArg]),false) : [];
+      return {kind:'fb', name:s.name, type:s.type, args, power, contacts:guardsToNet(r.guards)};
     }
-    return {kind:'assign', target:r.target, expr:structuredClone(r.expr), contacts:normGuards(r.guards)};
+    const m={kind:'assign', target:r.target, expr:structuredClone(r.expr), contacts:guardsToNet(r.guards)};
+    if(r.ifPair) m.ifPair=r.ifPair;
+    // boolean-shaped assignments draw as a contact network driving the coil
+    // (bMotor := (bStart OR bMotor) AND NOT bStop is the textbook seal-in)
+    if(isBoolExpr(r.expr)) m.enet=toSeries(structuredClone(r.expr),false);
+    return m;
   });
 }
-
-/* series contacts -> single AND/NOT expression (rebuilds an FB power input) */
-function contactsToExpr(cs){
-  let node=null;
-  for(const c of cs){
-    const e=c.neg?{k:'not',e:structuredClone(c.cond)}:structuredClone(c.cond);
-    node=node?{k:'bin',op:'AND',l:node,r:e}:e;
-  }
-  return node;
+function isBoolExpr(e){
+  return e.k==='bool' || e.k==='not' ||
+    (e.k==='bin' && ['AND','OR','<','>','<=','>=','=','<>'].includes(e.op));
 }
 
 /* ordered block list from a model rung's expression tree, with live node
@@ -740,16 +808,15 @@ function blocks(r){
   return out;
 }
 
-/* contact -> ST condition text; parenthesize when needed for NOT / AND joins */
-function contactText(c,inAnd){
+/* contact -> ST condition text; parenthesize when needed for NOT */
+function contactText(c){
   const t=exprToST(c.cond);
   if(c.neg) return 'NOT '+(c.cond.k==='bin'?'('+t+')':t);
-  if(inAnd && c.cond.k==='bin' && c.cond.op==='OR') return '('+t+')';
   return t;
 }
-function wrapGuards(contacts,inner){
-  if(!contacts.length) return inner;
-  const cond=contacts.map(c=>contactText(c,contacts.length>1)).join(' AND ');
+function wrapGuards(net,inner){
+  if(!net.length) return inner;
+  const cond=exprToST(seriesToExpr(net));
   return 'IF '+cond+' THEN\n'+inner.split('\n').map(l=>l?'    '+l:l).join('\n')+'\nEND_IF';
 }
 
@@ -765,11 +832,12 @@ function modelToST(model){
     if(r.kind==='fb'){
       const args={};
       for(const [k,v] of Object.entries(r.args)) args[k]=v;
-      if(r.power.length) args[FB[r.type].power]=contactsToExpr(r.power);
+      if(r.power.length) args[FB[r.type].power]=seriesToExpr(r.power);
       parts.push(wrapGuards(r.contacts, fbCallToST({name:r.name,type:r.type,args})));
       return;
     }
-    const eTxt=exprToST(r.expr);
+    const netTxt=m=>m.enet ? (m.enet.length?exprToST(seriesToExpr(m.enet)):'FALSE') : exprToST(m.expr);
+    const eTxt=netTxt(r);
     if(!r.contacts.length){ parts.push(r.target+' := '+eTxt+';'); return; }
     // only the immediately following rung can be the ELSE partner — flatten
     // always emits an IF/ELSE adjacently, and collapsing across intervening
@@ -787,16 +855,21 @@ function modelToST(model){
       })(c);
       return found;
     };
-    if(r.contacts.length===1 && i+1<model.length
-       && !condReadsTarget(r.contacts[0].cond, r.target)){
+    const single=net=>net.length===1&&net[0].t==='contact'?net[0]:null;
+    const rc=single(r.contacts);
+    // a tagged genuine IF/ELSE pair may collapse even when the condition
+    // reads the target (that's a scan blinker — sequential IFs would break it)
+    if(rc && i+1<model.length
+       && (!condReadsTarget(rc.cond, r.target) || (r.ifPair && model[i+1].ifPair===r.ifPair))){
       const j=i+1, s=model[j];
-      if(!used.has(j) && s.kind==='assign' && s.target===r.target && s.contacts.length===1
-         && exprToST(s.contacts[0].cond)===exprToST(r.contacts[0].cond)
-         && s.contacts[0].neg!==r.contacts[0].neg){
+      const sc=s&&s.kind==='assign'?single(s.contacts):null;
+      if(!used.has(j) && sc && s.target===r.target
+         && exprToST(sc.cond)===exprToST(rc.cond)
+         && sc.neg!==rc.neg){
         used.add(j);
-        parts.push('IF '+contactText(r.contacts[0],false)+' THEN\n    '
+        parts.push('IF '+contactText(rc)+' THEN\n    '
           +r.target+' := '+eTxt+';\nELSE\n    '
-          +s.target+' := '+exprToST(s.expr)+';\nEND_IF');
+          +s.target+' := '+netTxt(s)+';\nEND_IF');
         return;
       }
     }
@@ -1040,12 +1113,37 @@ function renderStructure(model){
     c.innerHTML='<div class="lad"><div class="rnote">no assignments found — type on the left or press + rung</div></div>';
     return;
   }
-  const contactHTML=(ct,gk,ci)=>
-    `<div class="contact" draggable="true" data-drag="contact" data-cg="${gk}" data-c="${ci}">
-      <button class="cx" data-act="delc" data-cg="${gk}" data-c="${ci}" title="delete contact">×</button>
-      <div class="ctag" data-act="ctag" data-cg="${gk}" data-c="${ci}" title="click to edit">${esc(exprToST(ct.cond))}</div>
-      <span data-act="toggle" data-cg="${gk}" data-c="${ci}" title="toggle [ ] / [/]">${ct.neg?NC:NO}</span>
-    </div><div class="w" data-wk="c:${gk}:${ci}"></div>`;
+  const contactHTML=(ct,gk,path,noDel)=>
+    `<div class="contact" draggable="true" data-drag="contact" data-net="${gk}" data-path="${path}">
+      ${noDel?'':`<button class="cx" data-act="delc" data-net="${gk}" data-path="${path}" title="delete contact">×</button>`}
+      <div class="ctag" data-act="ctag" data-net="${gk}" data-path="${path}" title="click to edit">${esc(exprToST(ct.cond))}</div>
+      <span data-act="toggle" data-net="${gk}" data-path="${path}" title="toggle [ ] / [/]">${ct.neg?NC:NO}</span>
+    </div>`;
+  /* series = AND (left to right), parallel = OR (stacked branches) */
+  const seriesHTML=(series,gk,base)=>series.map((el,i)=>{
+    const path=base===''?String(i):base+'.'+i;
+    const wire=`<div class="w" data-wp="${gk}:${path}"></div>`;
+    if(el.t==='par'){
+      const brs=el.branches.map((br,bi)=>
+        `<div class="pbranch">
+           <div class="w pw" data-wbin="${gk}:${path}.${bi}"></div>
+           ${seriesHTML(br,gk,path+'.'+bi)}
+           <div class="w f" data-wbout="${gk}:${path}.${bi}"></div>
+         </div>`).join('');
+      return `<div class="par" data-net="${gk}" data-path="${path}">
+          <div class="pwrap"><div class="pbranches">${brs}</div></div>
+          <div class="parbtns">
+            <button class="addbr" data-act="addbranch" data-net="${gk}" data-path="${path}" title="add parallel (OR) branch">+∥</button>
+            <button class="addbr" data-act="toggle" data-net="${gk}" data-path="${path}" title="collapse the group into one normally-closed contact">[/]</button>
+          </div>
+        </div>`+wire;
+    }
+    // the lone FALSE placeholder contact (an emptied coil rung) can't be
+    // deleted again — hide its × so the no-op isn't offered
+    const noDel = gk==='e' && base==='' && series.length===1
+      && el.cond && el.cond.k==='bool' && el.cond.v===false && !el.neg;
+    return contactHTML(el,gk,path,noDel)+wire;
+  }).join('');
   const inner = model.map((r,n)=>{
     const head_=`<div class="rhead">
       <span class="drag" draggable="true" data-drag="rung" title="drag to reorder">⋮⋮</span>
@@ -1064,14 +1162,15 @@ function renderStructure(model){
       }).join('');
       const statPin=r.type==='CTU'||r.type==='CTD'?'CV':(r.type==='R_TRIG'||r.type==='F_TRIG'?'':'ET');
       const desc=`${esc(r.type)} <b>${esc(r.name)}</b>`+
-        (r.contacts.length?` — gated by ${esc(r.contacts.map(ct=>contactText(ct,false)).join(' AND '))}`:'');
+        (r.contacts.length?` — gated by ${esc(exprToST(seriesToExpr(r.contacts)))}`:'');
       return `<div class="rung" data-r="${n}">
         ${head_.replace('%DESC%', desc)}
         <div class="row">
           <div class="w" data-wk="w0"></div>
-          ${r.contacts.map((ct,i)=>contactHTML(ct,'g',i)).join('')}
-          ${r.power.map((ct,i)=>contactHTML(ct,'p',i)).join('')}
-          <button class="addc" data-act="addc" data-cg="p" title="add contact on the ${esc(def.power)} input">+[ ]</button>
+          ${seriesHTML(r.contacts,'g','')}
+          <button class="addc" data-act="addc" data-net="g" title="add IF guard contact (gates the whole call — a gated timer freezes)">+[ ]</button>
+          ${seriesHTML(r.power,'p','')}
+          <button class="addc" data-act="addc" data-net="p" title="add contact on the ${esc(def.power)} input">+[ ]</button>
           <div class="w" data-wk="pw"></div>
           <div class="blk" data-blk>
             <div class="bname">${esc(r.type)}</div>
@@ -1126,11 +1225,34 @@ function renderStructure(model){
         </div>` : '';
 
       return `<div class="rung" data-r="${n}">
-        ${head_.replace('%DESC%', isFor?'rebuilt as a counter across scans':'no bounded ladder form')}
+        ${head_.replace('%DESC%', (isFor?'rebuilt as a counter across scans':'no bounded ladder form')
+          +(r.contacts.length?` — gated by ${esc(exprToST(seriesToExpr(r.contacts)))}`:''))}
         <div class="noladder">
           <div class="nlhead">${head}</div>
           <div class="nlbody">${banner}</div>
           ${patt}
+        </div></div>`;
+    }
+    const desc = r.contacts.length
+      ? `gated by ${esc(exprToST(seriesToExpr(r.contacts)))}`
+      : 'unconditional — runs every scan';
+    if(r.enet){
+      // boolean logic drawn as contacts -> coil, the way ladder means it
+      return `<div class="rung" data-r="${n}">
+        ${head_.replace('%DESC%', desc)}
+        <div class="row">
+          <div class="w" data-wk="w0"></div>
+          ${seriesHTML(r.contacts,'g','')}
+          <button class="addc" data-act="addc" data-net="g" title="add IF guard contact (when open, the coil is not written at all)">+[ ]</button>
+          ${r.contacts.length?'<div class="w" data-wk="live"></div>':''}
+          ${seriesHTML(r.enet,'e','')}
+          <button class="addc" data-act="addc" data-net="e" title="add series contact to the coil logic">+[ ]</button>
+          <div class="w f" data-wk="eout"></div>
+          <div class="coil" data-coil>
+            <div class="ctag2" data-act="coil" title="click to edit">${esc(r.target)}</div>
+            <div class="val" data-val>—</div>
+          </div>
+          <div class="w" data-wk="eout"></div>
         </div></div>`;
     }
     r._blocks=blocks(r);
@@ -1139,15 +1261,12 @@ function renderStructure(model){
       b.ins.map((pinDef,ii)=>`<div class="bio"><i>${esc(pinDef.pin)}</i><span class="pinv" data-act="pin" data-b="${bi}" data-i="${ii}" title="${esc(exprToST(pinDef.get()))} — click to edit">${esc(exprToST(pinDef.get()))}</span></div>`).join('')+
       `<div class="bio"><i>OUT</i>→</div></div><div class="w" data-wk="live"></div>`
     ).join('');
-    const desc = r.contacts.length
-      ? `gated by ${esc(r.contacts.map(ct=>contactText(ct,false)).join(' AND '))}`
-      : 'unconditional — runs every scan';
     return `<div class="rung" data-r="${n}">
       ${head_.replace('%DESC%', desc)}
       <div class="row">
         <div class="w" data-wk="w0"></div>
-        ${r.contacts.map((ct,i)=>contactHTML(ct,'g',i)).join('')}
-        <button class="addc" data-act="addc" data-cg="g" title="add contact">+[ ]</button>
+        ${seriesHTML(r.contacts,'g','')}
+        <button class="addc" data-act="addc" data-net="g" title="add contact">+[ ]</button>
         <div class="w" data-wk="live"></div>
         ${bs}
         <div class="w f" data-wk="live"></div>
@@ -1160,6 +1279,51 @@ function renderStructure(model){
   }).join('');
   c.innerHTML = `<div class="lad" id="lad">${inner}</div>`;
   drawReturn(document.getElementById('lad'));
+  // vertical connection bars for each parallel group (heights need layout)
+  document.getElementById('lad').querySelectorAll('.par>.pwrap').forEach(pw=>{
+    const brs=[...pw.querySelectorAll(':scope>.pbranches>.pbranch')];
+    if(brs.length<2) return;
+    const top=brs[0].offsetTop+28, bot=brs[brs.length-1].offsetTop+30;
+    for(const side of ['pbarL','pbarR']){
+      const b=document.createElement('div');
+      b.className='pbar '+side;
+      b.style.top=top+'px'; b.style.height=(bot-top)+'px';
+      pw.appendChild(b);
+    }
+  });
+}
+
+/* power-flow trace: wires light where power actually reaches — a branch
+   conducts only if its contacts close AND power arrives at its left bar */
+function flowSeries(q,gk,series,base,entry,env,fb){
+  const setOn=(x,on)=>{ if(x) x.classList.toggle('on',!!on); };
+  let power=entry;
+  series.forEach((el,i)=>{
+    const path=base===''?String(i):base+'.'+i;
+    if(el.t==='contact'){
+      const b=truthy(evalExpr(el.cond,env,false,fb));
+      const on=el.neg?!b:b;
+      setOn(q.querySelector(`.contact[data-net="${gk}"][data-path="${path}"]`),on);
+      power=power&&on;
+    } else {
+      let any=false;
+      el.branches.forEach((br,bi)=>{
+        const bp=path+'.'+bi;
+        const out=flowSeries(q,gk,br,bp,power,env,fb);
+        setOn(q.querySelector(`[data-wbin="${gk}:${bp}"]`),power);
+        setOn(q.querySelector(`[data-wbout="${gk}:${bp}"]`),out);
+        any=any||out;
+      });
+      const parEl=q.querySelector(`.par[data-net="${gk}"][data-path="${path}"]`);
+      if(parEl){
+        setOn(parEl.querySelector(':scope>.pwrap>.pbar.pbarL'),power);
+        setOn(parEl.querySelector(':scope>.pwrap>.pbar.pbarR'),power&&any);
+      }
+      power=power&&any;
+    }
+    setOn(q.querySelector(`[data-wp="${gk}:${path}"]`),power);
+  });
+  return power;
 }
 
 /* paints live state onto the existing structure — runs every scan, touches
@@ -1174,27 +1338,25 @@ function updateState(model,env,fb){
   model.forEach((r,n)=>{
     const el=rungEls[n];
     if(!el||r.kind==='loop'||el===editingRung) return;
-    const gStates=r.contacts.map(c=>{ const b=truthy(evalExpr(c.cond,env,false,fb)); return c.neg?!b:b; });
-    const executed=gStates.every(Boolean);
-    gStates.forEach((on,i)=>{
-      setOn(el.querySelector(`.contact[data-cg="g"][data-c="${i}"]`),on);
-      setOn(el.querySelector(`.w[data-wk="c:g:${i}"]`),on);
-    });
-    setOn(el.querySelector('.w[data-wk="w0"]'), executed||r.contacts.length===0);
+    const executed=flowSeries(el,'g',r.contacts,'',true,env,fb);
+    setOn(el.querySelector('.w[data-wk="w0"]'), true);   // the rail is always hot
     if(r.kind==='assign'){
       el.querySelectorAll('.w[data-wk="live"]').forEach(w=>setOn(w,executed));
-      el.querySelectorAll('.blk').forEach(b=>setOn(b,executed));
-      setOn(el.querySelector('[data-coil]'),executed);
       const v=env[r.target];
       const valEl=el.querySelector('[data-val]');
-      if(valEl) valEl.textContent = executed&&v!==undefined ? fmt(v) : 'not written';
+      if(r.enet){
+        const inOn=flowSeries(el,'e',r.enet,'',executed,env,fb);
+        el.querySelectorAll('.w[data-wk="eout"]').forEach(w=>setOn(w,inOn));
+        setOn(el.querySelector('[data-coil]'),executed&&inOn);
+        if(valEl) valEl.textContent = executed&&v!==undefined ? fmt(v) : 'not written';
+      } else {
+        el.querySelectorAll('.blk').forEach(b=>setOn(b,executed));
+        setOn(el.querySelector('[data-coil]'),executed);
+        if(valEl) valEl.textContent = executed&&v!==undefined ? fmt(v) : 'not written';
+      }
     } else if(r.kind==='fb'){
-      const pStates=r.power.map(c=>{ const b=truthy(evalExpr(c.cond,env,false,fb)); return c.neg?!b:b; });
-      pStates.forEach((on,i)=>{
-        setOn(el.querySelector(`.contact[data-cg="p"][data-c="${i}"]`),on&&executed);
-        setOn(el.querySelector(`.w[data-wk="c:p:${i}"]`),on&&executed);
-      });
-      setOn(el.querySelector('.w[data-wk="pw"]'), executed&&pStates.every(Boolean)&&pStates.length>0);
+      const inOn=flowSeries(el,'p',r.power,'',executed,env,fb);
+      setOn(el.querySelector('.w[data-wk="pw"]'), r.power.length>0&&inOn);
       setOn(el.querySelector('[data-blk]'), executed);
       const st=fb[r.name];
       const statEl=el.querySelector('[data-fbstat]');
@@ -1453,18 +1615,33 @@ canvasEl.addEventListener('click',e=>{
   const r=rungEl?viewModel[+rungEl.dataset.r]:null;
   if(!r) return;
   const act=t.dataset.act;
-  // contacts live in two groups: "g" = IF guards, "p" = the FB power input
-  const grp = t.dataset.cg==='p' ? r.power : r.contacts;
+  // contact networks: "g" = IF guards, "p" = FB power input, "e" = coil logic
+  const net = t.dataset.net==='p' ? r.power : (t.dataset.net==='e' ? r.enet : r.contacts);
   if(act==='delrung'){ viewModel.splice(+rungEl.dataset.r,1); regen(); }
-  else if(act==='toggle'){ const ct=grp[+t.dataset.c]; ct.neg=!ct.neg; regen(); }
-  else if(act==='delc'){ grp.splice(+t.dataset.c,1); regen(); }
-  else if(act==='addc'){ grp.push({cond:{k:'var',name:'bNew'},neg:false}); regen(); }
+  else if(act==='toggle'){
+    const {arr,idx}=netAt(net,t.dataset.path);
+    if(arr[idx].t==='par'){
+      // negate the whole group: collapse to one NC contact over the OR expr
+      arr.splice(idx,1,{t:'contact',cond:seriesToExpr([arr[idx]]),neg:true});
+    } else arr[idx].neg=!arr[idx].neg;
+    regen();
+  }
+  else if(act==='delc'){
+    const {arr,idx}=netAt(net,t.dataset.path);
+    arr.splice(idx,1); pruneNet(net); regen();
+  }
+  else if(act==='addc'){ net.push({t:'contact',cond:{k:'var',name:'bNew'},neg:false}); regen(); }
+  else if(act==='addbranch'){
+    const {arr,idx}=netAt(net,t.dataset.path);
+    arr[idx].branches.push([{t:'contact',cond:{k:'var',name:'bNew'},neg:false}]);
+    regen();
+  }
   else if(act==='ctag'){
-    const ct=grp[+t.dataset.c];
+    const {arr,idx}=netAt(net,t.dataset.path); const ct=arr[idx];
     inlineEdit(t, exprToST(ct.cond), v=>{
-      let x=parseExprText(v), neg=ct.neg;
-      while(x.k==='not'){ neg=!neg; x=x.e; }
-      ct.cond=x; ct.neg=neg; regen();
+      // typed AND/OR expands into series/parallel structure in place
+      arr.splice(idx,1,...toSeries(parseExprText(v), ct.neg));
+      pruneNet(net); regen();
     });
   }
   else if(act==='pin'){
@@ -1504,7 +1681,7 @@ canvasEl.addEventListener('dragstart',e=>{
   const rungEl=h.closest('[data-r]');
   dragInfo = h.dataset.drag==='rung'
     ? {t:'rung', r:+rungEl.dataset.r}
-    : {t:'contact', r:+rungEl.dataset.r, c:+h.dataset.c, cg:h.dataset.cg||'g'};
+    : {t:'contact', r:+rungEl.dataset.r, net:h.dataset.net||'g', path:h.dataset.path};
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain','');
   if(h.dataset.drag==='rung') e.dataTransfer.setDragImage(rungEl,20,20);
@@ -1518,7 +1695,11 @@ canvasEl.addEventListener('dragover',e=>{
   if(dragInfo.t==='contact'){
     const rungEl=over.closest('[data-r]');
     if(!rungEl || +rungEl.dataset.r!==dragInfo.r) return;
-    if((over.dataset.cg||'g')!==dragInfo.cg) return;
+    if((over.dataset.net||'g')!==dragInfo.net) return;
+    // reorder only within the same series (same parallel branch)
+    const parentOf=p=>p&&p.includes('.')?p.slice(0,p.lastIndexOf('.')):'';
+    const overParent = over.classList.contains('addc') ? '' : parentOf(over.dataset.path);
+    if(overParent!==parentOf(dragInfo.path)) return;
   }
   e.preventDefault();
   clearDragHighlights();
@@ -1536,11 +1717,23 @@ canvasEl.addEventListener('drop',e=>{
   } else {
     const over=e.target.closest('.contact,.addc');
     const rungEl=over&&over.closest('[data-r]');
-    if(rungEl && +rungEl.dataset.r===dragInfo.r && (over.dataset.cg||'g')===dragInfo.cg){
+    if(rungEl && +rungEl.dataset.r===dragInfo.r && (over.dataset.net||'g')===dragInfo.net){
       const r=viewModel[dragInfo.r];
-      const grp=dragInfo.cg==='p'?r.power:r.contacts;
-      const to=over.classList.contains('addc')?grp.length-1:+over.dataset.c;
-      if(to!==dragInfo.c){ grp.splice(to,0,grp.splice(dragInfo.c,1)[0]); regen(); }
+      const net=dragInfo.net==='p'?r.power:(dragInfo.net==='e'?r.enet:r.contacts);
+      const from=netAt(net,dragInfo.path);
+      const parentOf=p=>p&&p.includes('.')?p.slice(0,p.lastIndexOf('.')):'';
+      let toArr, toIdx;
+      if(over.classList.contains('addc')){
+        if(parentOf(dragInfo.path)!=='') { dragInfo=null; clearDragHighlights(); return; }
+        toArr=net; toIdx=net.length-1;
+      } else {
+        if(parentOf(over.dataset.path)!==parentOf(dragInfo.path)){ dragInfo=null; clearDragHighlights(); return; }
+        const tgt=netAt(net,over.dataset.path);
+        toArr=tgt.arr; toIdx=tgt.idx;
+      }
+      if(toArr===from.arr && toIdx!==from.idx){
+        from.arr.splice(toIdx,0,from.arr.splice(from.idx,1)[0]); regen();
+      }
     }
   }
   dragInfo=null;
