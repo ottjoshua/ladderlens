@@ -12,7 +12,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="An OT workspace in the browser: draw a P&ID, put controllers on it, and write their IEC 61131-3 logic as Structured Text or Ladder Diagram running on a real scan cycle against a live plant. No install, no dependencies.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314171a'/%3E%3Cpath d='M6 4v24M26 4v24' stroke='%23c8963e' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M6 12h20M6 22h20' stroke='%235fd38d' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<title>LadderLens — Structured Text ⇄ Ladder Diagram</title>
+<title>LadderLens — OT workspace · P&amp;ID, controllers &amp; live logic</title>
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
@@ -34,7 +34,7 @@
     <button id="stepbtn" title="execute one scan (when stopped)">step</button>
     <button id="resetbtn" title="cold restart — clears retained state, timers, counters and tank levels">reset</button>
   </div>
-  <div class="sub">Structured Text ⇄ Ladder Diagram · IEC 61131-3 · edit either side &nbsp;·&nbsp; <span style="color:var(--dim)">by Joshua Ott</span></div>
+  <div class="sub">an OT workspace — P&amp;ID plant &amp; controllers · IEC 61131-3 logic, Structured Text ⇄ Ladder · live scan simulation &nbsp;·&nbsp; <span style="color:var(--dim)">by Joshua Ott</span></div>
 </header>
 
 <div class="wrap" id="readwrap" hidden>
@@ -91,43 +91,66 @@
   </section>
 </div>
 
-<div class="wrap" id="plantwrap">
-  <section class="pane">
-    <p class="lbl">P&amp;ID — plant &amp; control</p>
+<div class="wrap pidwrap" id="plantwrap">
+  <aside class="palette" aria-label="device palette">
+    <p class="plbl">devices</p>
+    <button data-padd="plc" title="controller — runs IEC 61131-3 logic; double-click it on the canvas to open its program">
+      <svg viewBox="0 0 60 44"><rect x="6" y="6" width="48" height="32" rx="4" fill="#131a22" stroke="#4a7dab" stroke-width="1.5"/><line x1="6" y1="15" x2="54" y2="15" stroke="#2c4a66"/><circle cx="12" cy="10.5" r="2" fill="#5fd38d"/><text x="30" y="31" text-anchor="middle" font-size="10" fill="#7fb2e0">PLC</text></svg>
+      <span>controller</span></button>
+    <button data-padd="tank" title="tank — holds level 0–100%">
+      <svg viewBox="0 0 60 44"><rect x="14" y="4" width="32" height="36" rx="3" fill="#151a1e" stroke="#3d7a6b" stroke-width="1.5"/><rect x="16" y="26" width="28" height="12" rx="2" fill="var(--hot-dim)"/></svg>
+      <span>tank</span></button>
+    <button data-padd="valve" title="control valve — opens to its tag's value (0–100)">
+      <svg viewBox="0 0 60 44"><path d="M 12 17 L 30 28 L 12 39 Z M 48 17 L 30 28 L 48 39 Z" fill="#1e2a31" stroke="#c8963e" stroke-width="1.5"/><line x1="30" y1="28" x2="30" y2="12" stroke="#c8963e" stroke-width="1.5"/><circle cx="30" cy="8" r="4" fill="none" stroke="#c8963e" stroke-width="1.5"/></svg>
+      <span>valve</span></button>
+    <button data-padd="pump" title="pump — runs from a BOOL tag, speed from a 0–100 tag">
+      <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="15" fill="#1e2a31" stroke="#3d7a6b" stroke-width="1.5"/><path d="M 24 14 L 39 22 L 24 30 Z" fill="#6c7a85"/></svg>
+      <span>pump</span></button>
+    <button data-padd="lt" title="level transmitter — publishes its tank's level to a tag">
+      <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="13" fill="#1d1712" stroke="#e0864a" stroke-width="1.2"/><text x="30" y="26" text-anchor="middle" font-size="10" fill="#e0864a">LT</text></svg>
+      <span>transmitter</span></button>
+    <button data-padd="supply" title="supply — an infinite source">
+      <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="12" fill="#151a1e" stroke="#6c7a85" stroke-width="1.5"/><path d="M 25 22 L 37 22 M 32 17 L 37 22 L 32 27" stroke="#6c7a85" stroke-width="1.5" fill="none"/></svg>
+      <span>supply</span></button>
+    <button data-padd="drain" title="drain — an infinite sink">
+      <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="12" fill="#151a1e" stroke="#6c7a85" stroke-width="1.5"/><path d="M 23 22 L 34 22 M 29 17 L 34 22 L 29 27" stroke="#6c7a85" stroke-width="1.5" fill="none"/></svg>
+      <span>drain</span></button>
+  </aside>
+
+  <section class="workbench">
     <svg id="pcanvas" xmlns="http://www.w3.org/2000/svg"></svg>
-    <div class="bar">
-      <span class="barlbl">add</span>
-      <button data-padd="plc">controller</button>
-      <button data-padd="tank">tank</button>
-      <button data-padd="valve">valve</button>
-      <button data-padd="pump">pump</button>
-      <button data-padd="lt">transmitter</button>
-      <button data-padd="supply">supply</button>
-      <button data-padd="drain">drain</button>
+    <div class="wbbar">
       <span class="barlbl">examples</span>
       <button id="pex1">level control plant</button>
       <button id="pclear">clear</button>
+      <span class="sp"></span>
+      <span class="wbhint">drag to move · click to configure · double-click a controller to open its logic</span>
     </div>
+  </section>
+
+  <aside class="sidebar">
+    <p class="lbl">Device</p>
     <div id="pinspect">click a device to configure it — drag to move</div>
-  </section>
-  <section class="pane">
-    <p class="lbl">Live tags</p>
+    <p class="lbl" style="margin-top:18px">Live tags</p>
     <div class="vgrid" id="ptags"><span class="out" style="color:var(--dim)">no bound tags</span></div>
-    <div class="legend">
-      the plant runs on the same scan as the logic: transmitters write their tank's level into
-      their tag <b>before</b> each scan, the logic runs, then valves and pumps move flow and
-      tanks integrate it<br><br>
-      <b>valve</b> opens to its tag's value (0–100) · <b>pump</b> runs from a BOOL tag ·
-      <b>LT</b> publishes tank level · flows animate where liquid moves ·
-      a full tank with net inflow shows <b>overflow</b><br><br>
-      a <b>controller</b> is a device too: select it and press <b>open logic</b> (or double-click
-      it) to edit the program it runs · the Logic view shows which program you are editing —
-      a controller's, or the free-standing <b>sandbox</b><br><br>
-      try the <b>level control plant</b>, watch it settle near SP — then load the
-      <b>sign error</b> logic example and watch the same plant run away · the workspace is saved
-      in this browser and travels as a <b>.llp</b> project file; a .st file carries logic alone
-    </div>
-  </section>
+    <details class="help">
+      <summary>how the plant runs</summary>
+      <div class="legend">
+        the plant runs on the same scan as the logic: transmitters write their tank's level into
+        their tag <b>before</b> each scan, the logic runs, then valves and pumps move flow and
+        tanks integrate it<br><br>
+        <b>valve</b> opens to its tag's value (0–100) · <b>pump</b> runs from a BOOL tag ·
+        <b>LT</b> publishes tank level · flows animate where liquid moves ·
+        a full tank with net inflow shows <b>overflow</b><br><br>
+        a <b>controller</b> is a device too: select it and press <b>open logic</b> (or double-click
+        it) to edit the program it runs · the Logic view shows which program you are editing —
+        a controller's, or the free-standing <b>sandbox</b><br><br>
+        try the <b>level control plant</b>, watch it settle near SP — then load the
+        <b>sign error</b> logic example and watch the same plant run away · the workspace is saved
+        in this browser and travels as a <b>.llp</b> project file; a .st file carries logic alone
+      </div>
+    </details>
+  </aside>
 </div>
 
 

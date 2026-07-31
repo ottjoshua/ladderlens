@@ -23,7 +23,7 @@ h1 span{color:var(--rail)}
 .pane+.pane{border-left:1px solid #262e35}
 @media(max-width:900px){.pane+.pane{border-left:0;border-top:1px solid #262e35}}
 .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
-textarea{width:100%;height:290px;background:var(--panel);color:var(--ink);border:1px solid #2b343c;border-radius:5px;
+textarea{width:100%;height:340px;background:var(--panel);color:var(--ink);border:1px solid #2b343c;border-radius:5px;
   font-family:var(--mono);font-size:12.5px;line-height:1.65;padding:12px;resize:vertical;tab-size:2}
 textarea:focus{outline:2px solid var(--rail);outline-offset:-1px}
 .bar{display:flex;gap:8px;margin:10px 0 0;flex-wrap:wrap}
@@ -175,6 +175,37 @@ select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt
 .mode:hover:not(.on){color:var(--ink)}
 header .scan{margin-top:0;flex:0 0 auto}
 /* plant view */
+/* ---- P&ID workbench: palette | canvas | sidebar, Packet-Tracer style ---- */
+.pidwrap{grid-template-columns:92px minmax(0,1fr) minmax(280px,320px)}
+.palette{border-right:1px solid #262e35;padding:14px 10px;display:flex;flex-direction:column;gap:7px}
+.plbl{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);margin:0 0 4px;text-align:center}
+.palette button{background:var(--panel);border:1px solid #2b343c;border-radius:7px;color:var(--dim);
+  padding:7px 2px 5px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-family:var(--mono);font-size:9px;cursor:pointer}
+.palette button:hover{border-color:var(--rail);color:var(--rail)}
+.palette svg{width:44px;height:32px;display:block}
+.workbench{display:flex;flex-direction:column;min-width:0;padding:14px 16px}
+.workbench #pcanvas{flex:1;height:auto;min-height:420px}
+.wbbar{display:flex;gap:8px;margin-top:9px;align-items:center;flex-wrap:wrap}
+.wbbar .sp{flex:1}
+.wbbar button{background:transparent;border:1px dashed #3a444d;color:var(--dim);padding:3px 9px;
+  font-size:10.5px;font-family:var(--mono);cursor:pointer;border-radius:4px}
+.wbbar button:hover{border-color:var(--rail);color:var(--rail)}
+.wbhint{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.sidebar{border-left:1px solid #262e35;padding:16px;min-width:0;overflow-y:auto}
+.sidebar #pinspect{margin-top:0}
+.help{margin-top:18px}
+.help summary{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);cursor:pointer}
+.help summary:hover{color:var(--rail)}
+.help .legend{margin-top:10px}
+@media(max-width:980px){
+  .pidwrap{grid-template-columns:76px minmax(0,1fr)}
+  .sidebar{grid-column:1/-1;border-left:0;border-top:1px solid #262e35}
+  .workbench #pcanvas{min-height:340px}
+}
+
 #pcanvas{display:block;width:100%;height:440px;background:var(--panel);border:1px solid #2b343c;border-radius:5px;
   touch-action:none;user-select:none}
 #pcanvas text{font-family:var(--mono);fill:var(--ink);pointer-events:none}

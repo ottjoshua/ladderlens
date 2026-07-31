@@ -155,7 +155,9 @@ function symbolSVG(d){
 function plantRebuild(){
   const svg=document.getElementById('pcanvas');
   if(!svg) return;
-  const W=Math.max(svg.clientWidth,400), H=440;
+  // the canvas fills the workbench — the viewBox tracks its on-screen size so
+  // device coordinates stay 1:1 with pixels at any window size
+  const W=Math.max(svg.clientWidth,400), H=Math.max(svg.clientHeight,340);
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   let pipes='', inst='', syms='';
   for(const d of plant.devices){
@@ -240,6 +242,14 @@ svgEl.addEventListener('pointermove',e=>{
   if(nx!==d.x||ny!==d.y){ d.x=nx; d.y=ny; pDrag.moved=true; plantRebuild(); plantPaint(); }
 });
 svgEl.addEventListener('pointerup',()=>{ if(pDrag&&pDrag.moved) plantSave(); pDrag=null; });
+let rszTimer=null;
+window.addEventListener('resize',()=>{
+  clearTimeout(rszTimer);
+  rszTimer=setTimeout(()=>{
+    const wrap=document.getElementById('plantwrap');
+    if(wrap&&!wrap.hidden){ plantRebuild(); plantPaint(); }
+  },150);
+});
 svgEl.addEventListener('dblclick',e=>{
   const g=e.target.closest('.sym'); if(!g) return;
   const d=pById(g.dataset.pid);
