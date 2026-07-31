@@ -87,7 +87,8 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .contact.on::before,.contact.on::after{background:var(--hot)}
 .ctag{font-family:var(--mono);font-size:10px;line-height:12px;color:var(--dim);white-space:nowrap;margin-bottom:4px}
 .contact.on .ctag{color:var(--hot)}
-.cglyph{display:block;width:30px;height:26px}
+.cglyph{display:block;width:30px;height:26px;color:var(--wire)}
+.contact.on .cglyph{color:var(--hot)}
 .blk{flex:0 0 auto;background:var(--blk);border:1px solid var(--blk-edge);border-radius:6px;padding:6px 10px 7px;margin:0 2px}
 .blk.on{border-color:var(--hot);box-shadow:0 0 0 1px var(--hot-dim)}
 .bname{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--blk-txt);letter-spacing:.1em;text-align:center;margin-bottom:4px}
@@ -120,7 +121,12 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .legend{margin-top:14px;font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.9}
 .legend b{color:var(--ink);font-weight:500}
 .scan{display:flex;align-items:center;gap:9px;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--dim)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--hot);animation:p 1s steps(1) infinite}
+.scan .sp{flex:1}
+.scan button{background:transparent;border:1px dashed #3a444d;color:var(--dim);padding:3px 9px;
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.scan button:hover{border-color:var(--rail);color:var(--rail)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--hot);animation:p 1s steps(1) infinite;flex:0 0 auto}
+.dot.stop{animation:none;opacity:.2}
 @keyframes p{0%,49%{opacity:1}50%,100%{opacity:.15}}
 @media(prefers-reduced-motion:reduce){.dot{animation:none}}
 /* diagram editing */
@@ -175,6 +181,7 @@ select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt
       <button id="ex3">Interlock</button>
       <button id="ex4">CASE</button>
       <button id="ex5">FOR loop</button>
+      <button id="ex6">Seal-in + timer</button>
     </div>
     <div id="err"></div>
 
@@ -191,7 +198,13 @@ select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt
     <div class="canvas" id="canvas"></div>
     <div class="canvasbar"><button id="addrung">+ rung</button></div>
     <div id="cwarn"></div>
-    <div class="scan"><span class="dot"></span><span id="scanmsg">every rung re-evaluates each scan</span></div>
+    <div class="scan">
+      <span class="dot" id="dot"></span><span id="scanmsg">every rung re-evaluates each scan</span>
+      <span class="sp"></span>
+      <button id="runbtn" title="start / stop the scan cycle">stop</button>
+      <button id="stepbtn" title="execute one scan (when stopped)">step</button>
+      <button id="resetbtn" title="cold restart — clears retained state, timers and counters">reset</button>
+    </div>
     <div class="legend">
       <b>[ ]</b> normally open — passes power when TRUE &nbsp;·&nbsp; <b>[/]</b> normally closed — passes power when FALSE<br>
       <b>green</b> = energized this scan &nbsp;·&nbsp; arithmetic uses function blocks, not operators<br>
@@ -200,7 +213,11 @@ select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt
       to flip <b>[ ]</b>/<b>[/]</b> · drag <b>⋮⋮</b> to reorder rungs · drag contacts to reorder them ·
       <b>×</b> deletes · type any expression into a pin<br>
       diagram edits regenerate the text in flat rung form — complementary rungs collapse back to
-      <b>IF/ELSE</b>, comments are dropped
+      <b>IF/ELSE</b>, comments are dropped<br><br>
+      <b>this is a real scan:</b> state persists between scans, so seal-in rungs latch and
+      <b>TON/TOF/TP</b> timers, <b>CTU/CTD</b> counters and <b>R_TRIG/F_TRIG</b> edges work —
+      declare instances in <b>VAR … END_VAR</b>, call them like <b>tmr(IN := b, PT := T#5s)</b>,
+      read <b>tmr.Q</b> · <b>reset</b> is a cold restart · <b>step</b> single-scans while stopped
     </div>
   </section>
 </div>
@@ -256,6 +273,22 @@ END_FOR
 
 rAverage := rTotal / 4.0;`,
 
+ex6:`(* Motor seal-in with a star-delta timer.
+   Toggle bStart: the motor latches in through its
+   own contact, and tmrStar times toward T#5s —
+   watch ET climb, then Q fires the delta contactor.
+   bStop drops everything out. Try STEP with the
+   scan stopped to single-step the timer. *)
+VAR
+    tmrStar : TON;
+END_VAR
+
+bMotor := (bStart OR bMotor) AND NOT bStop;
+
+tmrStar(IN := bMotor, PT := T#5s);
+
+bDelta := tmrStar.Q;`,
+
 ex3:`(* Pump permissive with a low-level interlock *)
 rMargin := rLevel - rTripPoint;
 
@@ -271,7 +304,7 @@ rPumpSpeed := LIMIT(0.0, rPumpSpeed, 100.0);`
 /* ---------- tokenizer ---------- */
 function lex(src){
   src = src.replace(/\(\*[\s\S]*?\*\)/g,' ').replace(/\/\/[^\n]*/g,' ');
-  const t=[], re=/([A-Za-z_]\w*|\d+\.\d+|\d+|:=|<=|>=|<>|[-+*/()<>=,;:])|(\S)/g;
+  const t=[], re=/([Tt](?:[Ii][Mm][Ee])?#[\w.]+|[A-Za-z_]\w*|\d+\.\d+|\d+|:=|<=|>=|<>|[-+*/()<>=,;:.])|(\S)/g;
   let m;
   while((m=re.exec(src))!==null){
     if(m[2]!==undefined) throw new Error(`unexpected character "${m[2]}"`);
@@ -280,13 +313,40 @@ function lex(src){
   return t;
 }
 
+/* T#5s / TIME#1m30s / T#250ms -> milliseconds */
+function parseTimeLiteral(tok){
+  const body=tok.slice(tok.indexOf('#')+1).toLowerCase().replace(/_/g,'');
+  const re=/(\d+(?:\.\d+)?)(ms|s|m|h|d)/g;
+  const UNIT={ms:1,s:1000,m:60000,h:3600000,d:86400000};
+  let ms=0, consumed=0, m;
+  while((m=re.exec(body))!==null){ ms+=parseFloat(m[1])*UNIT[m[2]]; consumed+=m[0].length; }
+  if(consumed!==body.length || consumed===0)
+    throw new Error(`bad time literal "${tok}" — use e.g. T#500ms, T#5s, T#1m30s`);
+  return ms;
+}
+
 /* ---------- parser ---------- */
 const KW = new Set(['IF','THEN','ELSIF','ELSE','END_IF','AND','OR','NOT','TRUE','FALSE',
-                    'CASE','OF','END_CASE','FOR','TO','BY','DO','END_FOR','WHILE','END_WHILE']);
+                    'CASE','OF','END_CASE','FOR','TO','BY','DO','END_FOR','WHILE','END_WHILE',
+                    'VAR','END_VAR']);
 const FUNCS = new Set(['LIMIT','MIN','MAX','ABS','SQRT','SEL']);
+
+/* stateful IEC function blocks: argument order, which argument carries rung
+   power in ladder, and which output members exist */
+const FB = {
+  TON:   {args:['IN','PT'],  power:'IN',  members:['Q','ET']},
+  TOF:   {args:['IN','PT'],  power:'IN',  members:['Q','ET']},
+  TP:    {args:['IN','PT'],  power:'IN',  members:['Q','ET']},
+  CTU:   {args:['CU','R','PV'],  power:'CU',  members:['Q','CV']},
+  CTD:   {args:['CD','LD','PV'], power:'CD',  members:['Q','CV']},
+  R_TRIG:{args:['CLK'], power:'CLK', members:['Q']},
+  F_TRIG:{args:['CLK'], power:'CLK', members:['Q']},
+};
+const PLAINTYPES = new Set(['BOOL','INT','DINT','REAL','LREAL','TIME']);
 
 function parse(tokens){
   let i=0;
+  const decls={};   // instance/variable name -> declared type (uppercase)
   const peek=()=>tokens[i];
   const up=()=> (tokens[i]||'').toUpperCase();
   const eat=(v)=>{
@@ -300,14 +360,59 @@ function parse(tokens){
     while(i<tokens.length && !stop.has(up())) out.push(stmt());
     return out;
   }
+  function varBlock(){
+    eat('VAR');
+    const list=[];
+    while(i<tokens.length && up()!=='END_VAR'){
+      const name=eat()||'';
+      if(!/^[A-Za-z_]\w*$/.test(name) || KW.has(name.toUpperCase()))
+        throw new Error(`"${name||'end of input'}" is not a valid variable name`);
+      if(decls[name]!==undefined) throw new Error(`"${name}" is declared twice`);
+      eat(':');
+      const type=(eat()||'').toUpperCase();
+      if(!FB[type] && !PLAINTYPES.has(type))
+        throw new Error(`unknown type "${type||'end of input'}" — function blocks: ${Object.keys(FB).join(', ')}; simple types: ${[...PLAINTYPES].join(', ')}`);
+      decls[name]=type;
+      list.push({name,type});
+      if(peek()===';') i++;
+    }
+    eat('END_VAR');
+    if(peek()===';') i++;
+    return {k:'vardecl',decls:list};
+  }
+  function fbCall(name){
+    const type=decls[name];
+    eat('(');
+    const args={};
+    if(up()!==')'){
+      for(;;){
+        const an=(eat()||'').toUpperCase();
+        if(!FB[type].args.includes(an))
+          throw new Error(`${type} has no input "${an||'end of input'}" — inputs: ${FB[type].args.join(', ')}`);
+        if(args[an]!==undefined) throw new Error(`input "${an}" is given twice`);
+        eat(':=');
+        args[an]=orExpr();
+        if(peek()===','){ eat(','); continue; }
+        break;
+      }
+    }
+    eat(')');
+    if(peek()===';') i++;
+    return {k:'fbcall',name,type,args};
+  }
   function stmt(){
     if(up()==='IF') return ifStmt();
     if(up()==='CASE') return caseStmt();
     if(up()==='FOR') return forStmt();
     if(up()==='WHILE') return whileStmt();
+    if(up()==='VAR') return varBlock();
     const target=eat();
     if(!/^[A-Za-z_]\w*$/.test(target) || KW.has(target.toUpperCase()))
       throw new Error(`"${target}" is not a valid assignment target`);
+    if(peek()==='('){
+      if(FB[decls[target]]) return fbCall(target);
+      throw new Error(`"${target}" is called like a function block, but it is not declared — add e.g. "VAR ${target} : TON; END_VAR"`);
+    }
     eat(':=');
     const expr=orExpr();
     if(peek()===';') i++;
@@ -399,20 +504,38 @@ function parse(tokens){
     if(peek()==='('){ eat('('); const e=orExpr(); eat(')'); return e; }
     const tk=eat();
     if(tk===undefined) throw new Error('unexpected end of input');
+    if(tk.includes('#')) return {k:'time',v:parseTimeLiteral(tk),raw:tk};
     if(/^\d/.test(tk)) return {k:'num',v:parseFloat(tk),raw:tk};
+    if(!/^[A-Za-z_]\w*$/.test(tk)) throw new Error(`unexpected "${tk}"`);
     const U=tk.toUpperCase();
     if(U==='TRUE') return {k:'bool',v:true};
     if(U==='FALSE') return {k:'bool',v:false};
     if(KW.has(U)) throw new Error(`"${tk}" is a reserved word`);
     if(peek()==='('){
+      if(FB[decls[tk]])
+        throw new Error(`"${tk}" is a function block instance — call it as its own statement, then read ${tk}.${FB[decls[tk]].members[0]}`);
       eat('('); const args=[];
       if(peek()!==')'){ args.push(orExpr()); while(peek()===','){ eat(','); args.push(orExpr()); } }
       eat(')');
       return {k:'call',name:U,args};
     }
-    return {k:'var',name:tk};
+    let node={k:'var',name:tk};
+    if(peek()==='.'){
+      eat('.');
+      const mem=eat();
+      if(!/^[A-Za-z_]\w*$/.test(mem||'')) throw new Error(`expected a member name after "${tk}."`);
+      const type=decls[tk];
+      if(!FB[type]) throw new Error(`"${tk}" is not a declared function block instance, so "${tk}.${mem}" has no meaning`);
+      const M=mem.toUpperCase();
+      if(!FB[type].members.includes(M))
+        throw new Error(`${type} has no output "${M}" — outputs: ${FB[type].members.join(', ')}`);
+      node={k:'member',inst:tk,name:M};
+      if(peek()==='.') throw new Error(`"${tk}.${M}" has no members of its own`);
+    }
+    return node;
   }
   const prog=stmts(new Set());
+  prog.decls=decls;
   return prog;
 }
 
@@ -434,7 +557,9 @@ function flatten(prog){
   const rungs=[];
   function walk(list,guards){
     for(const s of list){
-      if(s.k==='assign') rungs.push({target:s.target,expr:s.expr,guards:guards.slice()});
+      if(s.k==='vardecl'){ /* not a rung */ }
+      else if(s.k==='fbcall') rungs.push({kind:'fb',fb:s,guards:guards.slice()});
+      else if(s.k==='assign') rungs.push({target:s.target,expr:s.expr,guards:guards.slice()});
       else if(s.k==='if'){
         walk(s.then, guards.concat([{cond:s.cond,neg:false}]));
         let acc=[{cond:s.cond,neg:true}];
@@ -472,8 +597,10 @@ const PREC={'OR':1,'AND':2,'<':3,'>':3,'<=':3,'>=':3,'=':3,'<>':3,'+':4,'-':4,'*
 function exprToST(e){
   switch(e.k){
     case 'num': return e.raw!==undefined?e.raw:String(e.v);
+    case 'time': return e.raw!==undefined?e.raw:('T#'+e.v+'ms');
     case 'bool': return e.v?'TRUE':'FALSE';
     case 'var': return e.name;
+    case 'member': return e.inst+'.'+e.name;
     case 'not': return 'NOT '+(e.e.k==='bin'?'('+exprToST(e.e)+')':exprToST(e.e));
     case 'call': return e.name+'('+e.args.map(exprToST).join(', ')+')';
     case 'bin':{
@@ -488,11 +615,20 @@ function exprToST(e){
   return '?';
 }
 
-/* parse a string as a single expression (piggybacks on the full parser) */
+/* parse a string as a single expression (piggybacks on the full parser,
+   seeded with the program's VAR declarations so tmr.Q etc. resolve) */
 function parseExprText(src){
-  const prog=parse(lex('__t := ('+src+');'));
-  if(prog.length!==1 || prog[0].k!=='assign') throw new Error('not a single expression');
-  return prog[0].expr;
+  const decl=programDecls.length
+    ? 'VAR\n'+programDecls.map(d=>d.name+' : '+d.type+';').join('\n')+'\nEND_VAR\n' : '';
+  const prog=parse(lex(decl+'__t := ('+src+');'));
+  const st=prog.find(s=>s.k==='assign');
+  if(!st || prog.filter(s=>s.k!=='vardecl').length!==1) throw new Error('not a single expression');
+  return st.expr;
+}
+
+function fbCallToST(s){
+  const parts=FB[s.type].args.filter(a=>s.args[a]!==undefined).map(a=>a+' := '+exprToST(s.args[a]));
+  return s.name+'('+parts.join(', ')+');';
 }
 
 /* AST statement -> ST text, preserving IF/CASE/FOR/WHILE structure
@@ -502,6 +638,8 @@ function unparseStmt(s,ind){
   const body=list=>list.map(x=>unparseStmt(x,B)).join('\n');
   switch(s.k){
     case 'assign': return I+s.target+' := '+exprToST(s.expr)+';';
+    case 'fbcall': return I+fbCallToST(s);
+    case 'vardecl': return I+'VAR\n'+s.decls.map(d=>B+d.name+' : '+d.type+';').join('\n')+'\n'+I+'END_VAR';
     case 'if':{
       let t=I+'IF '+exprToST(s.cond)+' THEN\n'+body(s.then);
       for(const e of s.elifs) t+='\n'+I+'ELSIF '+exprToST(e.cond)+' THEN\n'+body(e.body);
@@ -529,6 +667,7 @@ function unparseStmt(s,ind){
    so diagram edits mutate the model, regenerate the text, and reparse — the
    textarea stays the single source of truth. */
 let viewModel=[];
+let programDecls=[];   // VAR-block declarations, preserved through diagram regen
 /* true whenever the textarea holds text the model does NOT reflect (parse
    error) — diagram edits are ignored until the text parses again, so a stale
    model can never overwrite newer source text */
@@ -550,8 +689,26 @@ function buildModel(flatRungs){
   return flatRungs.map(r=>{
     if(r.kind==='loop')
       return {kind:'loop', loop:structuredClone(r.loop), contacts:normGuards(r.guards), targets:r.targets};
+    if(r.kind==='fb'){
+      const s=r.fb, powerArg=FB[s.type].power;
+      const args={};
+      for(const [k,v] of Object.entries(s.args)) if(k!==powerArg) args[k]=structuredClone(v);
+      const power = s.args[powerArg]!==undefined
+        ? normGuards([{cond:s.args[powerArg],neg:false}]) : [];
+      return {kind:'fb', name:s.name, type:s.type, args, power, contacts:normGuards(r.guards)};
+    }
     return {kind:'assign', target:r.target, expr:structuredClone(r.expr), contacts:normGuards(r.guards)};
   });
+}
+
+/* series contacts -> single AND/NOT expression (rebuilds an FB power input) */
+function contactsToExpr(cs){
+  let node=null;
+  for(const c of cs){
+    const e=c.neg?{k:'not',e:structuredClone(c.cond)}:structuredClone(c.cond);
+    node=node?{k:'bin',op:'AND',l:node,r:e}:e;
+  }
+  return node;
 }
 
 /* ordered block list from a model rung's expression tree, with live node
@@ -600,15 +757,38 @@ function wrapGuards(contacts,inner){
    same tag collapse back into one IF/ELSE. */
 function modelToST(model){
   const parts=[], used=new Set();
+  if(programDecls.length)
+    parts.push('VAR\n'+programDecls.map(d=>'    '+d.name+' : '+d.type+';').join('\n')+'\nEND_VAR');
   model.forEach((r,i)=>{
     if(used.has(i)) return;
     if(r.kind==='loop'){ parts.push(wrapGuards(r.contacts, unparseStmt(r.loop,''))); return; }
+    if(r.kind==='fb'){
+      const args={};
+      for(const [k,v] of Object.entries(r.args)) args[k]=v;
+      if(r.power.length) args[FB[r.type].power]=contactsToExpr(r.power);
+      parts.push(wrapGuards(r.contacts, fbCallToST({name:r.name,type:r.type,args})));
+      return;
+    }
     const eTxt=exprToST(r.expr);
     if(!r.contacts.length){ parts.push(r.target+' := '+eTxt+';'); return; }
     // only the immediately following rung can be the ELSE partner — flatten
     // always emits an IF/ELSE adjacently, and collapsing across intervening
-    // rungs would silently reorder the program
-    if(r.contacts.length===1 && i+1<model.length){
+    // rungs would silently reorder the program. Also never collapse when the
+    // condition reads the written tag (seal-in style): sequential IFs
+    // re-evaluate the condition mid-scan, IF/ELSE evaluates it once — those
+    // differ exactly when the first body changes the condition.
+    const condReadsTarget=(c,tgt)=>{
+      let found=false;
+      (function w(e){ if(!e||found) return;
+        if(e.k==='var'&&e.name===tgt){ found=true; return; }
+        if(e.k==='not') w(e.e);
+        else if(e.k==='bin'){ w(e.l); w(e.r); }
+        else if(e.k==='call') e.args.forEach(w);
+      })(c);
+      return found;
+    };
+    if(r.contacts.length===1 && i+1<model.length
+       && !condReadsTarget(r.contacts[0].cond, r.target)){
       const j=i+1, s=model[j];
       if(!used.has(j) && s.kind==='assign' && s.target===r.target && s.contacts.length===1
          && exprToST(s.contacts[0].cond)===exprToST(r.contacts[0].cond)
@@ -630,6 +810,12 @@ function modelToST(model){
 function staleWarnings(model){
   const w=[];
   model.forEach((r,i)=>{
+    if(r.kind==='fb'&&r.contacts.length){
+      w.push('Rung '+(i+1)+' calls <b>'+esc(r.name)+'</b> only while its IF condition is true. '
+        +'A function block that is not called does not execute — a gated timer <b>freezes</b> instead of resetting. '
+        +'In ladder the block always sees the rail; gate the '+esc(FB[r.type].power)+' input instead.');
+      return;
+    }
     if(r.kind!=='assign'||!r.contacts.length) return;
     const others=model.some((s,j)=>j!==i&&s.kind==='assign'&&s.target===r.target);
     if(!others) w.push('Rung '+(i+1)+' writes <b>'+esc(r.target)+'</b> only while its contact passes power. '
@@ -641,11 +827,13 @@ function staleWarnings(model){
 
 /* ---------- variable discovery ---------- */
 function scan(prog){
-  const assigned=new Set(), read=new Set(), bools=new Set();
+  const assigned=new Set(), read=new Set(), bools=new Set(), insts=new Set();
+  const BOOLARGS=new Set(['IN','CU','CD','CLK','R','LD']);
   function ex(e,isBool){
     if(!e) return;
     switch(e.k){
       case 'var': read.add(e.name); if(isBool) bools.add(e.name); break;
+      case 'member': insts.add(e.inst); break;
       case 'not': ex(e.e,true); break;
       case 'call': e.args.forEach(a=>ex(a,false)); break;
       case 'bin':
@@ -657,30 +845,43 @@ function scan(prog){
   (function walk(list){
     for(const s of list){
       if(s.k==='assign'){ assigned.add(s.target); ex(s.expr,false); }
+      else if(s.k==='vardecl'){ s.decls.forEach(d=>{ if(FB[d.type]) insts.add(d.name); else if(d.type==='BOOL') bools.add(d.name); }); }
+      else if(s.k==='fbcall'){ insts.add(s.name);
+        for(const[an,ax]of Object.entries(s.args)) ex(ax,BOOLARGS.has(an)); }
       else if(s.k==='if'){ ex(s.cond,true); walk(s.then); s.elifs.forEach(e=>{ex(e.cond,true);walk(e.body);}); walk(s.alt); }
       else if(s.k==='case'){ ex(s.sel,false); s.branches.forEach(b=>{b.labels.forEach(L=>ex(L,false)); walk(b.body);}); walk(s.alt); }
       else if(s.k==='for'){ assigned.add(s.v); ex(s.from,false); ex(s.to,false); ex(s.by,false); walk(s.body); }
       else if(s.k==='while'){ ex(s.cond,true); walk(s.body); }
     }
   })(prog);
-  const inputs=[...read].filter(v=>!assigned.has(v));
-  return {inputs,outputs:[...assigned],bools};
+  const inputs=[...read].filter(v=>!assigned.has(v)&&!insts.has(v));
+  return {inputs,outputs:[...assigned],bools,insts:[...insts]};
 }
 
 /* ---------- evaluator ---------- */
 const truthy=v=>v===true||(typeof v==='number'&&v!==0);
 
 /* one expression evaluator for both the scan and the rung display.
-   strict=true throws on unknown functions; strict=false (display) treats them as 0 */
-function evalExpr(e,env,strict){
+   strict=true throws on unknown functions; strict=false (display) treats them as 0.
+   fb = the function-block instance state map (for member access like tmr.Q) */
+function evalExpr(e,env,strict,fb){
   if(!e) return 0;
   switch(e.k){
     case 'num': return e.v;
+    case 'time': return e.v;
     case 'bool': return e.v;
     case 'var': return env[e.name]!==undefined?env[e.name]:0;
-    case 'not': return !truthy(evalExpr(e.e,env,strict));
+    case 'member':{
+      // an instance that has never been called reads as cold defaults,
+      // like zeroed instance memory on a real PLC
+      const st=fb&&fb[e.inst];
+      if(!st) return e.name==='Q'?false:0;
+      const v=st[e.name.toLowerCase()];
+      return v===undefined?0:v;
+    }
+    case 'not': return !truthy(evalExpr(e.e,env,strict,fb));
     case 'call':{
-      const a=e.args.map(x=>evalExpr(x,env,strict));
+      const a=e.args.map(x=>evalExpr(x,env,strict,fb));
       switch(e.name){
         case 'LIMIT': return Math.min(Math.max(a[1],a[0]),a[2]);
         case 'MIN': return Math.min(...a);
@@ -694,7 +895,7 @@ function evalExpr(e,env,strict){
       }
     }
     case 'bin':{
-      const L=evalExpr(e.l,env,strict), R=evalExpr(e.r,env,strict);
+      const L=evalExpr(e.l,env,strict,fb), R=evalExpr(e.r,env,strict,fb);
       switch(e.op){
         case '+':return L+R; case '-':return L-R; case '*':return L*R;
         case '/':return R===0?0:L/R;
@@ -708,13 +909,74 @@ function evalExpr(e,env,strict){
   return 0;
 }
 
-function evaluate(prog,env){
-  const trace=[];
-  const val=e=>evalExpr(e,env,true);
+/* one scan of a stateful function block. st is the instance's retained state
+   (lowercase members q/et/cv plus internals); dt is the scan period in ms */
+function runFB(type,st,inp,dt){
+  const IN=truthy(inp.IN), PT=inp.PT||0;
+  // IEC timing: ET is 0 on the scan that observes the edge; dt accumulates
+  // starting the FOLLOWING scan (st.prev marks "was already in this phase")
+  switch(type){
+    case 'TON':
+      if(IN){ if(st.prev) st.et=Math.min(st.et+dt,PT); st.q=st.et>=PT; }
+      else { st.et=0; st.q=false; }
+      st.prev=IN;
+      break;
+    case 'TOF':
+      if(IN){ st.q=true; st.et=0; }
+      else if(st.q){ if(!st.prev) st.et=Math.min(st.et+dt,PT); if(st.et>=PT) st.q=false; }
+      st.prev=IN;
+      break;
+    case 'TP':{
+      const rising=IN&&!st.prev;
+      if(rising&&!st.busy){ st.busy=true; st.et=0; }
+      else if(st.busy) st.et=Math.min(st.et+dt,PT);
+      if(st.busy){
+        st.q=st.et<PT;
+        if(st.et>=PT&&!IN){ st.busy=false; st.et=0; }
+      }
+      st.prev=IN;
+      break;
+    }
+    case 'CTU':{
+      const cu=truthy(inp.CU);
+      if(truthy(inp.R)) st.cv=0;
+      else if(cu&&!st.prev) st.cv++;
+      st.prev=cu; st.q=st.cv>=(inp.PV||0);
+      break;
+    }
+    case 'CTD':{
+      const cd=truthy(inp.CD);
+      if(truthy(inp.LD)) st.cv=inp.PV||0;
+      else if(cd&&!st.prev&&st.cv>0) st.cv--;
+      st.prev=cd; st.q=st.cv<=0;
+      break;
+    }
+    case 'R_TRIG':{ const c=truthy(inp.CLK); st.q=c&&!st.prev; st.prev=c; break; }
+    case 'F_TRIG':{ const c=truthy(inp.CLK); st.q=!c&&st.prev; st.prev=c; break; }
+  }
+}
+
+function evaluate(prog,env,dt,fbStates){
+  dt=dt===undefined?100:dt;
+  fbStates=fbStates||{};
+  const val=e=>evalExpr(e,env,true,fbStates);
   let budget=20000;
   (function walk(list){
     for(const s of list){
-      if(s.k==='assign'){ const v=val(s.expr); env[s.target]=v; trace.push({target:s.target,value:v,live:true}); }
+      if(s.k==='vardecl'){ /* declarations execute nothing */ }
+      else if(s.k==='assign'){ env[s.target]=val(s.expr); }
+      else if(s.k==='fbcall'){
+        const def=FB[s.type];
+        let st=fbStates[s.name];
+        if(!st||st.type!==s.type) st=fbStates[s.name]={type:s.type,q:false,et:0,cv:0,prev:false,busy:false,inp:{}};
+        // IEC formal calls: an omitted input keeps its previous instance value
+        const inp={};
+        for(const a of def.args)
+          inp[a]= s.args[a]!==undefined ? val(s.args[a])
+                : (st.inp&&st.inp[a]!==undefined ? st.inp[a] : (a==='PT'||a==='PV'?0:false));
+        st.inp=inp;
+        runFB(s.type,st,inp,dt);
+      }
       else if(s.k==='if'){
         if(truthy(val(s.cond))) walk(s.then);
         else {
@@ -747,14 +1009,15 @@ function evaluate(prog,env){
       }
     }
   })(prog);
-  return {env,trace};
+  return env;
 }
 
 /* ---------- rendering ---------- */
-const NO=`<svg class="cglyph" viewBox="0 0 30 26"><line x1="0" y1="13" x2="10" y2="13" stroke="CUR" stroke-width="2"/><line x1="10" y1="4" x2="10" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="4" x2="20" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="13" x2="30" y2="13" stroke="CUR" stroke-width="2"/></svg>`;
-const NC=`<svg class="cglyph" viewBox="0 0 30 26"><line x1="0" y1="13" x2="10" y2="13" stroke="CUR" stroke-width="2"/><line x1="10" y1="4" x2="10" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="4" x2="20" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="10" y1="22" x2="20" y2="4" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="13" x2="30" y2="13" stroke="CUR" stroke-width="2"/></svg>`;
+const NO=`<svg class="cglyph" viewBox="0 0 30 26"><line x1="0" y1="13" x2="10" y2="13" stroke="currentColor" stroke-width="2"/><line x1="10" y1="4" x2="10" y2="22" stroke="currentColor" stroke-width="2.2"/><line x1="20" y1="4" x2="20" y2="22" stroke="currentColor" stroke-width="2.2"/><line x1="20" y1="13" x2="30" y2="13" stroke="currentColor" stroke-width="2"/></svg>`;
+const NC=`<svg class="cglyph" viewBox="0 0 30 26"><line x1="0" y1="13" x2="10" y2="13" stroke="currentColor" stroke-width="2"/><line x1="10" y1="4" x2="10" y2="22" stroke="currentColor" stroke-width="2.2"/><line x1="20" y1="4" x2="20" y2="22" stroke="currentColor" stroke-width="2.2"/><line x1="10" y1="22" x2="20" y2="4" stroke="currentColor" stroke-width="2.2"/><line x1="20" y1="13" x2="30" y2="13" stroke="currentColor" stroke-width="2"/></svg>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=v=>typeof v==='boolean'?(v?'TRUE':'FALSE'):(Number.isInteger(v)?v.toFixed(1):v.toFixed(2));
+const fmtTime=ms=> ms>=1000 ? (Math.round(ms/100)/10)+'s' : Math.round(ms)+'ms';
 
 function cRung(letter, contact, block, note){
   return `<div class="crung">
@@ -769,12 +1032,20 @@ function cRung(letter, contact, block, note){
   </div>`;
 }
 
-function render(model,env){
+/* builds the ladder DOM — called only when the program changes, never per
+   scan, so inline editors and drags are never destroyed by the scan loop */
+function renderStructure(model){
   const c=document.getElementById('canvas');
   if(!model.length){
     c.innerHTML='<div class="lad"><div class="rnote">no assignments found — type on the left or press + rung</div></div>';
     return;
   }
+  const contactHTML=(ct,gk,ci)=>
+    `<div class="contact" draggable="true" data-drag="contact" data-cg="${gk}" data-c="${ci}">
+      <button class="cx" data-act="delc" data-cg="${gk}" data-c="${ci}" title="delete contact">×</button>
+      <div class="ctag" data-act="ctag" data-cg="${gk}" data-c="${ci}" title="click to edit">${esc(exprToST(ct.cond))}</div>
+      <span data-act="toggle" data-cg="${gk}" data-c="${ci}" title="toggle [ ] / [/]">${ct.neg?NC:NO}</span>
+    </div><div class="w" data-wk="c:${gk}:${ci}"></div>`;
   const inner = model.map((r,n)=>{
     const head_=`<div class="rhead">
       <span class="drag" draggable="true" data-drag="rung" title="drag to reorder">⋮⋮</span>
@@ -782,6 +1053,41 @@ function render(model,env){
       <span class="sp"></span>
       <button class="cx" data-act="delrung" title="delete rung">×</button>
     </div>`;
+    if(r.kind==='fb'){
+      const def=FB[r.type];
+      r._pins=def.args.filter(a=>a!==def.power).map(an=>({
+        pin:an, get:()=>r.args[an], set:v=>{r.args[an]=v;}
+      }));
+      const pins=r._pins.map((p,pi)=>{
+        const v=p.get();
+        return `<div class="bio"><i>${esc(p.pin)}</i><span class="pinv" data-act="pin" data-pi="${pi}" title="click to edit">${v?esc(exprToST(v)):'—'}</span></div>`;
+      }).join('');
+      const statPin=r.type==='CTU'||r.type==='CTD'?'CV':(r.type==='R_TRIG'||r.type==='F_TRIG'?'':'ET');
+      const desc=`${esc(r.type)} <b>${esc(r.name)}</b>`+
+        (r.contacts.length?` — gated by ${esc(r.contacts.map(ct=>contactText(ct,false)).join(' AND '))}`:'');
+      return `<div class="rung" data-r="${n}">
+        ${head_.replace('%DESC%', desc)}
+        <div class="row">
+          <div class="w" data-wk="w0"></div>
+          ${r.contacts.map((ct,i)=>contactHTML(ct,'g',i)).join('')}
+          ${r.power.map((ct,i)=>contactHTML(ct,'p',i)).join('')}
+          <button class="addc" data-act="addc" data-cg="p" title="add contact on the ${esc(def.power)} input">+[ ]</button>
+          <div class="w" data-wk="pw"></div>
+          <div class="blk" data-blk>
+            <div class="bname">${esc(r.type)}</div>
+            <div class="bio"><i>this</i>${esc(r.name)}</div>
+            ${pins}
+            ${statPin?`<div class="bio"><i>${statPin}</i><span data-fbstat>—</span></div>`:''}
+            <div class="bio"><i>Q</i>→</div>
+          </div>
+          <div class="w f" data-wk="q"></div>
+          <div class="coil" data-qcoil>
+            <div class="ctag2">${esc(r.name)}.Q</div>
+            <div class="val" data-fbq>—</div>
+          </div>
+          <div class="w" data-wk="q"></div>
+        </div></div>`;
+    }
     if(r.kind==='loop'){
       const s=r.loop, isFor=s.k==='for';
       const head = isFor
@@ -827,49 +1133,91 @@ function render(model,env){
           ${patt}
         </div></div>`;
     }
-    const states=r.contacts.map(ct=>{
-      const base=truthy(evalExpr(ct.cond,env,false));
-      return ct.neg?!base:base;
-    });
-    const live=states.every(Boolean);
-    const gh = r.contacts.map((ct,ci)=>{
-      const on=states[ci], col=on?'#5fd38d':'#6c7a85';
-      const glyph=(ct.neg?NC:NO).replace(/CUR/g,col);
-      return `<div class="contact ${on?'on':''}" draggable="true" data-drag="contact" data-c="${ci}">
-          <button class="cx" data-act="delc" data-c="${ci}" title="delete contact">×</button>
-          <div class="ctag" data-act="ctag" data-c="${ci}" title="click to edit">${esc(exprToST(ct.cond))}</div>
-          <span data-act="toggle" data-c="${ci}" title="toggle [ ] / [/]">${glyph}</span>
-        </div>`
-           + `<div class="w ${on?'on':''}"></div>`;
-    }).join('');
     r._blocks=blocks(r);
     const bs = r._blocks.map((b,bi)=>
-      `<div class="blk ${live?'on':''}" data-b="${bi}"><div class="bname"${b.kind==='bin'?` data-act="opname" data-b="${bi}" title="click to change"`:''}>${esc(b.name)}</div>`+
+      `<div class="blk" data-b="${bi}"><div class="bname"${b.kind==='bin'?` data-act="opname" data-b="${bi}" title="click to change"`:''}>${esc(b.name)}</div>`+
       b.ins.map((pinDef,ii)=>`<div class="bio"><i>${esc(pinDef.pin)}</i><span class="pinv" data-act="pin" data-b="${bi}" data-i="${ii}" title="${esc(exprToST(pinDef.get()))} — click to edit">${esc(exprToST(pinDef.get()))}</span></div>`).join('')+
-      `<div class="bio"><i>OUT</i>→</div></div><div class="w ${live?'on':''}"></div>`
+      `<div class="bio"><i>OUT</i>→</div></div><div class="w" data-wk="live"></div>`
     ).join('');
-    const v = env[r.target];
     const desc = r.contacts.length
       ? `gated by ${esc(r.contacts.map(ct=>contactText(ct,false)).join(' AND '))}`
       : 'unconditional — runs every scan';
     return `<div class="rung" data-r="${n}">
       ${head_.replace('%DESC%', desc)}
       <div class="row">
-        <div class="w ${live||r.contacts.length===0?'on':''}"></div>
-        ${gh}
-        <button class="addc" data-act="addc" title="add contact">+[ ]</button>
-        <div class="w ${live?'on':''}"></div>
+        <div class="w" data-wk="w0"></div>
+        ${r.contacts.map((ct,i)=>contactHTML(ct,'g',i)).join('')}
+        <button class="addc" data-act="addc" data-cg="g" title="add contact">+[ ]</button>
+        <div class="w" data-wk="live"></div>
         ${bs}
-        <div class="w f ${live?'on':''}"></div>
-        <div class="coil ${live?'on':''}">
+        <div class="w f" data-wk="live"></div>
+        <div class="coil" data-coil>
           <div class="ctag2" data-act="coil" title="click to edit">${esc(r.target)}</div>
-          <div class="val">${live&&v!==undefined?fmt(v):'not written'}</div>
+          <div class="val" data-val>—</div>
         </div>
-        <div class="w ${live?'on':''}"></div>
+        <div class="w" data-wk="live"></div>
       </div></div>`;
   }).join('');
   c.innerHTML = `<div class="lad" id="lad">${inner}</div>`;
   drawReturn(document.getElementById('lad'));
+}
+
+/* paints live state onto the existing structure — runs every scan, touches
+   only classes and text, and skips any rung that hosts an open inline editor */
+function updateState(model,env,fb){
+  const act=document.activeElement;
+  const editingRung = act&&act.classList&&act.classList.contains('inline') ? act.closest('[data-r]') : null;
+  const lad=document.getElementById('lad');
+  if(!lad) return;
+  const rungEls=lad.querySelectorAll(':scope>.rung');
+  const setOn=(el,on)=>{ if(el) el.classList.toggle('on',!!on); };
+  model.forEach((r,n)=>{
+    const el=rungEls[n];
+    if(!el||r.kind==='loop'||el===editingRung) return;
+    const gStates=r.contacts.map(c=>{ const b=truthy(evalExpr(c.cond,env,false,fb)); return c.neg?!b:b; });
+    const executed=gStates.every(Boolean);
+    gStates.forEach((on,i)=>{
+      setOn(el.querySelector(`.contact[data-cg="g"][data-c="${i}"]`),on);
+      setOn(el.querySelector(`.w[data-wk="c:g:${i}"]`),on);
+    });
+    setOn(el.querySelector('.w[data-wk="w0"]'), executed||r.contacts.length===0);
+    if(r.kind==='assign'){
+      el.querySelectorAll('.w[data-wk="live"]').forEach(w=>setOn(w,executed));
+      el.querySelectorAll('.blk').forEach(b=>setOn(b,executed));
+      setOn(el.querySelector('[data-coil]'),executed);
+      const v=env[r.target];
+      const valEl=el.querySelector('[data-val]');
+      if(valEl) valEl.textContent = executed&&v!==undefined ? fmt(v) : 'not written';
+    } else if(r.kind==='fb'){
+      const pStates=r.power.map(c=>{ const b=truthy(evalExpr(c.cond,env,false,fb)); return c.neg?!b:b; });
+      pStates.forEach((on,i)=>{
+        setOn(el.querySelector(`.contact[data-cg="p"][data-c="${i}"]`),on&&executed);
+        setOn(el.querySelector(`.w[data-wk="c:p:${i}"]`),on&&executed);
+      });
+      setOn(el.querySelector('.w[data-wk="pw"]'), executed&&pStates.every(Boolean)&&pStates.length>0);
+      setOn(el.querySelector('[data-blk]'), executed);
+      const st=fb[r.name];
+      const statEl=el.querySelector('[data-fbstat]');
+      if(statEl&&st) statEl.textContent = (r.type==='CTU'||r.type==='CTD') ? String(st.cv) : fmtTime(st.et);
+      const q=!!(st&&st.q);
+      el.querySelectorAll('.w[data-wk="q"]').forEach(w=>setOn(w,q));
+      setOn(el.querySelector('[data-qcoil]'),q);
+      const qEl=el.querySelector('[data-fbq]');
+      if(qEl) qEl.textContent = q?'TRUE':'FALSE';
+    }
+  });
+  outEl.querySelectorAll('[data-o]').forEach(sp=>{
+    const v=env[sp.dataset.o];
+    sp.textContent = v!==undefined ? fmt(v) : '—';
+  });
+  outEl.querySelectorAll('[data-fb]').forEach(sp=>{
+    const st=fb[sp.dataset.fb];
+    if(!st){ sp.textContent='—'; return; }
+    let t='Q='+(st.q?'TRUE':'FALSE');
+    if(st.type==='CTU'||st.type==='CTD') t+=' · CV '+st.cv;
+    else if(st.type!=='R_TRIG'&&st.type!=='F_TRIG') t+=' · ET '+fmtTime(st.et);
+    sp.textContent=t;
+  });
 }
 
 /* full return path: exits below the last rung, runs up the left gutter,
@@ -897,13 +1245,17 @@ let values={};
 let inputsKey=null;
 
 /* one delegated listener — the panel is NOT rebuilt while you type,
-   so number fields keep focus between keystrokes */
+   so number fields keep focus between keystrokes. Input changes take
+   effect on the next scan; no re-parse needed. */
 inEl.addEventListener('input',e=>{
   const el=e.target, n=el.dataset.v;
   if(!n) return;
-  if(el.type==='checkbox') values[n]=el.checked;
+  if(el.type==='checkbox'){
+    values[n]=el.checked;
+    const sp=inEl.querySelector(`[data-o="${n}"]`);
+    if(sp) sp.textContent = el.checked?'TRUE':'FALSE';
+  }
   else{ const x=parseFloat(el.value); values[n]= isNaN(x)?0:x; }
-  run();
 });
 
 function refreshInputs(inputs,bools,force){
@@ -923,34 +1275,88 @@ function refreshInputs(inputs,bools,force){
   }
 }
 
+/* ---------- the scan cycle ----------
+   The PLC state lives here: scanEnv persists between scans (seal-in circuits
+   latch), fbStates holds timer/counter memory. RESET is a cold restart. */
+const SCAN_MS=100;
+let lastProg=null, scanEnv={}, fbStates={};
+let plcRunning=true, faulted=false;
+
+function fault(e){
+  faulted=true;
+  errEl.innerHTML=`<div class="err">Runtime fault: ${esc(e.message)}\nThe scan is halted — fix the program, or press RESET.</div>`;
+  document.getElementById('dot').classList.add('stop');
+}
+function updateRunUI(){
+  document.getElementById('runbtn').textContent = plcRunning?'stop':'run';
+  document.getElementById('dot').classList.toggle('stop', !plcRunning||faulted||modelStale);
+}
+/* repaint the display from current state WITHOUT executing a scan — editing
+   and RESET must never run hidden logic (counters would count, TPs would fire) */
+function repaint(){ updateState(viewModel,scanEnv,fbStates); }
+
+/* dt handling: the browser throttles timers in background tabs, so free-running
+   scans use real elapsed time (clamped) to keep TON/TOF wall-clock accurate;
+   STEP passes a fixed 100 ms so single-stepping stays deterministic */
+let lastTickAt=null;
+function scanTick(fixedDt){
+  if(!lastProg||modelStale||faulted) return;
+  const now=performance.now();
+  const dt = fixedDt!==undefined ? fixedDt
+           : (lastTickAt===null ? SCAN_MS : Math.min(now-lastTickAt,1000));
+  lastTickAt=now;
+  for(const k of Object.keys(values)) scanEnv[k]=values[k];
+  try{ evaluate(lastProg,scanEnv,dt,fbStates); }
+  catch(e){ fault(e); return; }
+  updateState(viewModel,scanEnv,fbStates);
+}
+
 function run(forceInputs){
   errEl.innerHTML='';
   let prog;
   try{ prog=parse(lex(srcEl.value)); }
-  catch(e){ errEl.innerHTML=`<div class="err">Parse error: ${esc(e.message)}</div>`; modelStale=true; return; }
+  catch(e){ errEl.innerHTML=`<div class="err">Parse error: ${esc(e.message)}</div>`; modelStale=true; updateRunUI(); return; }
   modelStale=false;
+  faulted=false;
+  lastProg=prog;
+  programDecls=Object.entries(prog.decls).map(([name,type])=>({name,type}));
+  // drop retained FB state whose declaration vanished or changed type
+  for(const k of Object.keys(fbStates))
+    if(fbStates[k].type!==prog.decls[k]) delete fbStates[k];
 
-  const {inputs,outputs,bools}=scan(prog);
+  const {inputs,outputs,bools,insts}=scan(prog);
+  // prune `values` to the CURRENT inputs — a tag that stops being an input
+  // (e.g. its assignment was temporarily commented out mid-edit) must not
+  // leave a stale overlay that stomps retained scanEnv state every scan
+  const inputSet=new Set(inputs);
+  for(const k of Object.keys(values)){
+    if(!inputSet.has(k)){ delete values[k]; continue; }
+    if(bools.has(k)&&typeof values[k]!=='boolean') values[k]=truthy(values[k]);
+    else if(!bools.has(k)&&typeof values[k]==='boolean') values[k]=values[k]?1:0;
+  }
+  // likewise drop retained state for tags that no longer exist in the program
+  const known=new Set([...inputs,...outputs]);
+  for(const k of Object.keys(scanEnv)) if(!known.has(k)) delete scanEnv[k];
   // hasOwnProperty: a variable named e.g. "constructor" must not resolve to an
   // inherited Object.prototype member
   inputs.forEach(v=>{ if(!Object.prototype.hasOwnProperty.call(values,v)) values[v]= bools.has(v)?false:0; });
 
   refreshInputs(inputs,bools,forceInputs===true);
 
-  const env=Object.assign({},values);
-  try{ evaluate(prog,env); }
-  catch(e){ errEl.innerHTML=`<div class="err">Evaluation error: ${esc(e.message)}</div>`; }
-
   outEl.innerHTML = outputs.map(v=>
-    `<label>${esc(v)}</label><span class="out">${env[v]!==undefined?fmt(env[v]):'—'}</span>`).join('');
+    `<label>${esc(v)}</label><span class="out" data-o="${esc(v)}">—</span>`).join('')
+    + insts.map(n=>
+    `<label>${esc(n)}</label><span class="out" data-fb="${esc(n)}">—</span>`).join('');
 
   viewModel=buildModel(flatten(prog));
-  render(viewModel,env);
+  renderStructure(viewModel);
   const w=staleWarnings(viewModel);
   document.getElementById('cwarn').innerHTML = w.length
     ? '<div class="warnbox">'+w.map(x=>'&middot; '+x).join('<br>')+'</div>' : '';
   document.getElementById('scanmsg').textContent =
-    `${viewModel.length} rungs · re-evaluated every scan (100 ms = 10×/sec)`;
+    `${viewModel.length} rungs · scanning every ${SCAN_MS} ms — state persists between scans`;
+  updateRunUI();
+  repaint();    // show current state immediately; the next scan does the rest
 }
 
 /* diagram edited -> regenerate the text and run the full cycle */
@@ -960,16 +1366,43 @@ function regen(){
   run();
 }
 
+/* the scan genuinely pauses while the tab is hidden (browsers throttle hidden
+   timers anyway); on return, the gap is not counted into dt */
+setInterval(()=>{ if(plcRunning&&!document.hidden) scanTick(); }, SCAN_MS);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) lastTickAt=null; });
+
+document.getElementById('runbtn').addEventListener('click',()=>{
+  plcRunning=!plcRunning;
+  if(plcRunning) lastTickAt=null;   // don't lump the stopped time into one dt
+  updateRunUI();
+});
+document.getElementById('stepbtn').addEventListener('click',()=>{
+  if(!plcRunning) scanTick(SCAN_MS);
+});
+document.getElementById('resetbtn').addEventListener('click',()=>{
+  scanEnv={}; fbStates={}; lastTickAt=null;
+  // a parse error is still a parse error after a cold restart — keep it shown
+  if(!modelStale){ faulted=false; errEl.innerHTML=''; }
+  updateRunUI();
+  repaint();
+});
+
 srcEl.addEventListener('input',()=>run());
 const EX_DEFAULTS={
   ex1:{rLC_SP:60,rLevel_PV:50,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false},
   ex2:{rLC_SP:60,rLevel_PV:40,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false},
   ex3:{rLevel:20,rTripPoint:15,rSpeedRef:80,rEnableScale:1,bLowLevelTrip:false},
   ex4:{iMode:1,rManualCmd:40,rAutoCmd:55,rTrim:1,rSafeCmd:0},
-  ex5:{rSample:25}
+  ex5:{rSample:25},
+  ex6:{bStart:false,bStop:false}
 };
-['ex1','ex2','ex3','ex4','ex5'].forEach(id=>document.getElementById(id)
-  .addEventListener('click',()=>{ srcEl.value=EX[id]; values=Object.assign({},EX_DEFAULTS[id]||{}); run(true); }));
+['ex1','ex2','ex3','ex4','ex5','ex6'].forEach(id=>document.getElementById(id)
+  .addEventListener('click',()=>{
+    srcEl.value=EX[id];
+    values=Object.assign({},EX_DEFAULTS[id]||{});
+    scanEnv={}; fbStates={};   // examples start from a cold PLC
+    run(true);
+  }));
 
 srcEl.value=EX.ex1;
 values={rLC_SP:60,rLevel_PV:50,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false};
@@ -993,7 +1426,7 @@ function inlineEdit(el,initial,apply){
   const restore=()=>{
     done=true;
     el.style.maxWidth=''; el.style.overflow='';
-    el.textContent=initial;
+    el.textContent = initial==='' ? '—' : initial;   // empty pins keep their placeholder
     if(host) host.draggable=true;
   };
   const commit=()=>{
@@ -1012,6 +1445,7 @@ function inlineEdit(el,initial,apply){
 }
 
 canvasEl.addEventListener('click',e=>{
+  if(modelStale) return;   // text has a parse error — the diagram is read-only
   if(e.target.closest('input,select')) return;
   const t=e.target.closest('[data-act]');
   if(!t) return;
@@ -1019,12 +1453,14 @@ canvasEl.addEventListener('click',e=>{
   const r=rungEl?viewModel[+rungEl.dataset.r]:null;
   if(!r) return;
   const act=t.dataset.act;
+  // contacts live in two groups: "g" = IF guards, "p" = the FB power input
+  const grp = t.dataset.cg==='p' ? r.power : r.contacts;
   if(act==='delrung'){ viewModel.splice(+rungEl.dataset.r,1); regen(); }
-  else if(act==='toggle'){ const ct=r.contacts[+t.dataset.c]; ct.neg=!ct.neg; regen(); }
-  else if(act==='delc'){ r.contacts.splice(+t.dataset.c,1); regen(); }
-  else if(act==='addc'){ r.contacts.push({cond:{k:'var',name:'bNew'},neg:false}); regen(); }
+  else if(act==='toggle'){ const ct=grp[+t.dataset.c]; ct.neg=!ct.neg; regen(); }
+  else if(act==='delc'){ grp.splice(+t.dataset.c,1); regen(); }
+  else if(act==='addc'){ grp.push({cond:{k:'var',name:'bNew'},neg:false}); regen(); }
   else if(act==='ctag'){
-    const ct=r.contacts[+t.dataset.c];
+    const ct=grp[+t.dataset.c];
     inlineEdit(t, exprToST(ct.cond), v=>{
       let x=parseExprText(v), neg=ct.neg;
       while(x.k==='not'){ neg=!neg; x=x.e; }
@@ -1032,8 +1468,9 @@ canvasEl.addEventListener('click',e=>{
     });
   }
   else if(act==='pin'){
-    const pinDef=r._blocks[+t.dataset.b].ins[+t.dataset.i];
-    inlineEdit(t, exprToST(pinDef.get()), v=>{ pinDef.set(parseExprText(v)); regen(); });
+    const pinDef = r.kind==='fb' ? r._pins[+t.dataset.pi] : r._blocks[+t.dataset.b].ins[+t.dataset.i];
+    const cur=pinDef.get();
+    inlineEdit(t, cur?exprToST(cur):'', v=>{ pinDef.set(parseExprText(v)); regen(); });
   }
   else if(act==='coil'){
     inlineEdit(t, r.target, v=>{
@@ -1061,12 +1498,13 @@ canvasEl.addEventListener('click',e=>{
 let dragInfo=null;
 const clearDragHighlights=()=>canvasEl.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));
 canvasEl.addEventListener('dragstart',e=>{
+  if(modelStale){ e.preventDefault(); return; }
   const h=e.target.closest('[data-drag]');
   if(!h){ e.preventDefault(); return; }
   const rungEl=h.closest('[data-r]');
   dragInfo = h.dataset.drag==='rung'
     ? {t:'rung', r:+rungEl.dataset.r}
-    : {t:'contact', r:+rungEl.dataset.r, c:+h.dataset.c};
+    : {t:'contact', r:+rungEl.dataset.r, c:+h.dataset.c, cg:h.dataset.cg||'g'};
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain','');
   if(h.dataset.drag==='rung') e.dataTransfer.setDragImage(rungEl,20,20);
@@ -1080,6 +1518,7 @@ canvasEl.addEventListener('dragover',e=>{
   if(dragInfo.t==='contact'){
     const rungEl=over.closest('[data-r]');
     if(!rungEl || +rungEl.dataset.r!==dragInfo.r) return;
+    if((over.dataset.cg||'g')!==dragInfo.cg) return;
   }
   e.preventDefault();
   clearDragHighlights();
@@ -1097,10 +1536,11 @@ canvasEl.addEventListener('drop',e=>{
   } else {
     const over=e.target.closest('.contact,.addc');
     const rungEl=over&&over.closest('[data-r]');
-    if(rungEl && +rungEl.dataset.r===dragInfo.r){
+    if(rungEl && +rungEl.dataset.r===dragInfo.r && (over.dataset.cg||'g')===dragInfo.cg){
       const r=viewModel[dragInfo.r];
-      const to=over.classList.contains('addc')?r.contacts.length-1:+over.dataset.c;
-      if(to!==dragInfo.c){ r.contacts.splice(to,0,r.contacts.splice(dragInfo.c,1)[0]); regen(); }
+      const grp=dragInfo.cg==='p'?r.power:r.contacts;
+      const to=over.classList.contains('addc')?grp.length-1:+over.dataset.c;
+      if(to!==dragInfo.c){ grp.splice(to,0,grp.splice(dragInfo.c,1)[0]); regen(); }
     }
   }
   dragInfo=null;
@@ -1109,13 +1549,14 @@ canvasEl.addEventListener('drop',e=>{
 canvasEl.addEventListener('dragend',()=>{ dragInfo=null; clearDragHighlights(); });
 
 document.getElementById('addrung').addEventListener('click',()=>{
+  if(modelStale) return;
   viewModel.push({kind:'assign',target:'rNew',expr:{k:'num',v:0,raw:'0.0'},contacts:[]});
   regen();
 });
 
 /* ================= .ST FILE OPEN / EXPORT ================= */
 const stfile=document.getElementById('stfile');
-function loadFile(f){ f.text().then(t=>{ srcEl.value=t; run(true); }); }
+function loadFile(f){ f.text().then(t=>{ srcEl.value=t; scanEnv={}; fbStates={}; run(true); }); }
 document.getElementById('openst').addEventListener('click',()=>stfile.click());
 stfile.addEventListener('change',()=>{ if(stfile.files[0]) loadFile(stfile.files[0]); stfile.value=''; });
 document.getElementById('exportst').addEventListener('click',()=>{
