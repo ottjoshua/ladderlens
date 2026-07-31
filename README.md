@@ -20,8 +20,11 @@ through the energized rungs.
 - Assignments, `IF` / `ELSIF` / `ELSE`, `CASE`
 - Arithmetic rendered as function blocks (`ADD`, `SUB`, `MUL`, `DIV`)
 - `LIMIT`, `MIN`, `MAX`, `ABS`, `SQRT`, `SEL`
-- Normally-open `[ ]` and normally-closed `[/]` contact gating; `AND`
-  conditions draw as series contacts
+- Normally-open `[ ]` and normally-closed `[/]` contacts; `AND` draws as
+  series contacts, `OR` as **parallel branches** with connection bars
+- Boolean assignments draw as **contact networks driving a coil** —
+  `bMotor := (bStart OR bMotor) AND NOT bStop;` renders as the textbook
+  motor seal-in circuit, and the wires light where power actually flows
 - A scan-return path showing the cyclic execution model (`T#100ms`)
 
 **A real scan cycle.** The program executes every 100 ms and state
@@ -82,11 +85,10 @@ Everything runs client-side. Nothing is uploaded.
 ## Scope and limits
 
 This is a teaching aid, not a compiler or a controller. It covers the
-common control-logic subset with untyped tags. It does **not** render
-parallel (OR) contact branches as vertical rungs, or model real-time
-determinism — the scan pauses while the tab is hidden, and pulses
-shorter than one scan period are missed (as on a real PLC). `FOR` /
-`WHILE` are explained rather than drawn, by design.
+common control-logic subset with untyped tags. It does **not** model
+real-time determinism — the scan pauses while the tab is hidden, and
+pulses shorter than one scan period are missed (as on a real PLC).
+`FOR` / `WHILE` are explained rather than drawn, by design.
 
 ## License
 
