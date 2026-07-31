@@ -3,6 +3,7 @@
 
 import {esc,truthy,pnum} from './engine.js';
 import {vendorsFor,modelsFor} from './catalog.js';
+import {validTag} from './project.js';
 
 /* The plant simulation + P&ID canvas. It reads and writes PLC tags only
    through hooks.env() — the environment of the controller it is wired to —
@@ -40,16 +41,28 @@ function plantActuatorTags(){
   }
   return m;
 }
+const LS_SP_DEFAULT=90;
+/* an instrument may only ever publish a number or a boolean into the tag
+   environment: values reaching here have passed through file validation, but
+   a transient like _flow is not a validated field — coerce at the boundary */
+function publish(tag,v){ if(tag) env()[tag]=v; }
 function plantSensors(){
   for(const d of plant.devices){
-    if(d.type==='lt'&&d.pvTag){ const t=pById(d.tank); env()[d.pvTag]= t&&t.type==='tank' ? t.level||0 : 0; }
+    if(d.type==='lt'){ const t=pById(d.tank); publish(d.pvTag, t&&t.type==='tank' ? pnum(t.level) : 0); }
     // FT publishes the flow its attached valve/pump moved last tick (%/s) —
     // one tick behind the actuator, like a real field instrument
-    if(d.type==='ft'&&d.flowTag){ const t=pById(d.dev); env()[d.flowTag]= t&&t._flow!==undefined ? t._flow : 0; }
-    // LS trips when its tank crosses the setpoint: high => TRUE at/above, low => TRUE at/below
-    if(d.type==='ls'&&d.outTag){
-      const t=pById(d.tank); const lv=t&&t.type==='tank'?(t.level||0):0;
-      env()[d.outTag]= d.mode==='low' ? lv<=(d.sp!==undefined?d.sp:0) : lv>=(d.sp!==undefined?d.sp:100);
+    if(d.type==='ft'){
+      const t=pById(d.dev);
+      publish(d.flowTag, t&&(t.type==='valve'||t.type==='pump') ? pnum(t._flow) : 0);
+    }
+    // LS trips when its tank crosses the setpoint: high => TRUE at/above, low
+    // => TRUE at/below. No tank means no measurement, which is never a trip —
+    // a dangling reference must not silently latch an interlock.
+    if(d.type==='ls'){
+      const t=pById(d.tank);
+      if(!t||t.type!=='tank'){ publish(d.outTag,false); continue; }
+      const lv=pnum(t.level), sp=d.sp!==undefined?d.sp:LS_SP_DEFAULT;
+      publish(d.outTag, d.mode==='low' ? lv<=sp : lv>=sp);
     }
   }
 }
@@ -171,7 +184,7 @@ function symbolSVG(d){
       <circle cx="-20" cy="-13" r="2" fill="#5fd38d"/>
       <text y="8" text-anchor="middle" font-size="9" fill="#7fb2e0">PLC</text>
       <text y="-24" text-anchor="middle" font-size="10">${esc(d.name)}</text>
-      <text y="30" text-anchor="middle" font-size="8" fill="#6c7a85">${esc(d.model?((d.vendor?d.vendor+' ':'')+d.model):'')}</text></g>`;
+      <text y="30" text-anchor="middle" font-size="8" fill="#6c7a85">${esc([d.vendor,d.model].filter(Boolean).join(' '))}</text></g>`;
     case 'supply': return g+`
       <circle class="hull" r="10" fill="#151a1e" stroke="#6c7a85" stroke-width="1.5"/>
       <path d="M -4 0 L 6 0 M 2 -4 L 6 0 L 2 4" stroke="#6c7a85" stroke-width="1.5" fill="none"/>
@@ -263,6 +276,35 @@ function plantPaint(){
       ||'<span class="out" style="color:var(--dim)">no bound tags</span>';
     if(pt.dataset.sig!==html){ pt.innerHTML=html; pt.dataset.sig=html; }
   }
+  const pw=document.getElementById('pwarn');
+  if(pw){
+    const w=tagConflicts();
+    const html=w.length?'<div class="warnbox">'+w.map(x=>'&middot; '+x).join('<br>')+'</div>':'';
+    if(pw.dataset.sig!==html){ pw.innerHTML=html; pw.dataset.sig=html; }
+  }
+}
+
+/* two devices writing one tag is silent last-writer-wins — name the collision
+   rather than let a plausible-looking wrong value ride */
+function tagConflicts(){
+  const writers=new Map();   // tag -> [device label, ...]
+  const note=(tag,label)=>{ if(!tag) return; if(!writers.has(tag)) writers.set(tag,[]); writers.get(tag).push(label); };
+  for(const d of plant.devices){
+    if(d.type==='lt') note(d.pvTag,d.name+' (level)');
+    if(d.type==='ft') note(d.flowTag,d.name+' (flow)');
+    if(d.type==='ls') note(d.outTag,d.name+' (switch)');
+  }
+  const out=[];
+  for(const [tag,who] of writers)
+    if(who.length>1)
+      out.push('<b>'+esc(tag)+'</b> is published by '+who.map(esc).join(' and ')
+        +' — the last one each scan wins, so the reading is not what it looks like. Give them separate tags.');
+  const acts=plantActuatorTags();
+  for(const [tag] of writers)
+    if(acts.has(tag))
+      out.push('<b>'+esc(tag)+'</b> is both an instrument reading and an actuator command — '
+        +'the instrument overwrites the command before every scan.');
+  return out;
 }
 
 /* ---- interaction ---- */
@@ -330,10 +372,17 @@ function renderInspector(){
     <div class="irow"><label>run tag</label><input data-pf="runTag" value="${esc(d.runTag||'')}" placeholder="BOOL, empty = always run"></div>
     <div class="irow"><label>speed tag</label><input data-pf="speedTag" value="${esc(d.speedTag||'')}" placeholder="0–100, empty = 100"></div>`;
   if(d.type==='plc'){
-    const vsel=['<option value="">—</option>',
-      ...vendorsFor('plc').map(v=>`<option${v===d.vendor?' selected':''}>${esc(v)}</option>`)].join('');
-    const msel=['<option value="">—</option>',
-      ...modelsFor('plc',d.vendor).map(m=>`<option${m===d.model?' selected':''}>${esc(m)}</option>`)].join('');
+    // a project may name a make/model this build's catalog doesn't carry (an
+    // older file, a hand edit). Show it as its own option rather than letting
+    // the select fall back to "—" and misreport what the device declares.
+    const optList=(list,cur)=>{
+      const out=['<option value="">—</option>'];
+      for(const x of list) out.push(`<option${x===cur?' selected':''}>${esc(x)}</option>`);
+      if(cur&&!list.includes(cur)) out.push(`<option selected>${esc(cur)}</option>`);
+      return out.join('');
+    };
+    const vsel=optList(vendorsFor('plc'),d.vendor);
+    const msel=optList(modelsFor('plc',d.vendor),d.model);
     rows+=`
     <div class="irow"><label>make</label><select data-pf="vendor">${vsel}</select></div>
     <div class="irow"><label>model</label><select data-pf="model">${msel}</select></div>
@@ -347,7 +396,7 @@ function renderInspector(){
     <div class="irow"><label>flow tag</label><input data-pf="flowTag" value="${esc(d.flowTag||'')}" placeholder="e.g. rFlow_PV (%/s)"></div>`;
   if(d.type==='ls') rows+=`
     <div class="irow"><label>tank</label><select data-pf="tank">${opts(['tank'],d.tank)}</select></div>
-    <div class="irow"><label>trip at %</label><input data-pf="sp" type="number" value="${d.sp!==undefined?d.sp:90}"></div>
+    <div class="irow"><label>trip at %</label><input data-pf="sp" type="number" value="${d.sp!==undefined?d.sp:LS_SP_DEFAULT}"></div>
     <div class="irow"><label>direction</label><select data-pf="mode">
       <option value="high"${d.mode!=='low'?' selected':''}>high — TRUE at/above</option>
       <option value="low"${d.mode==='low'?' selected':''}>low — TRUE at/below</option></select></div>
@@ -364,7 +413,7 @@ document.getElementById('pinspect').addEventListener('change',e=>{
     v=parseFloat(v); if(isNaN(v)) v=0;
     v = f==='maxFlow' ? Math.max(0,v) : clamp01(v);
   }
-  if(['posTag','runTag','speedTag','pvTag','flowTag','outTag'].includes(f)&&v&&!/^[A-Za-z_]\w*$/.test(v)){ renderInspector(); return; }
+  if(['posTag','runTag','speedTag','pvTag','flowTag','outTag'].includes(f)&&v&&!validTag(v)){ renderInspector(); return; }
   d[f]= (v===''&&['posTag','runTag','speedTag','pvTag','flowTag','outTag','from','to','tank','dev','vendor','model'].includes(f)) ? undefined : v;
   if(f==='vendor') d.model=undefined;   // model list follows the make
   if(f==='level') d._over=false;   // editing the level clears a stale overflow flag
@@ -394,7 +443,7 @@ document.querySelectorAll('[data-padd]').forEach(b=>b.addEventListener('click',(
   if(t==='tank'){ d.level=0; d.level0=0; }
   if(t==='valve'){ d.maxFlow=5; d.posConst=0; }
   if(t==='pump'){ d.maxFlow=5; }
-  if(t==='ls'){ d.sp=90; d.mode='high'; }
+  if(t==='ls'){ d.sp=LS_SP_DEFAULT; d.mode='high'; }
   if(t==='plc'){ d.program='(* '+d.name+' — write this controller\'s logic here *)\n'; d.inputs={}; }
   plant.devices.push(d); pSel=d.id;
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();

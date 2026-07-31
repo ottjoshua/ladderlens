@@ -19,10 +19,17 @@ const TYPES=['tank','valve','pump','lt','ft','ls','supply','drain','plc'];
    malformed entries must never brick boot or import. Ids are restricted to
    the charset the UI itself generates: they are interpolated into CSS
    selectors and data- attributes, so anything else is rejected outright. */
+/* names that exist on Object.prototype: assigning them on a plain object is
+   either a silent no-op or a prototype write, so they can never be tags */
+const RESERVED_TAGS=new Set(['__proto__','constructor','prototype','hasOwnProperty',
+  'toString','valueOf','isPrototypeOf','propertyIsEnumerable','toLocaleString']);
+export const validTag=t=>/^[A-Za-z_]\w*$/.test(t)&&!RESERVED_TAGS.has(t);
+
 function sanitizeInputs(obj){
   const out={};
   if(obj&&typeof obj==='object'&&!Array.isArray(obj))
     for(const k of Object.keys(obj)){
+      if(!validTag(k)) continue;
       const v=obj[k];
       if(typeof v==='boolean') out[k]=v;
       else{ const n=Number(v); if(Number.isFinite(n)) out[k]=n; }
@@ -45,6 +52,13 @@ function validDevices(list){
       if(d[f]!==undefined){ d[f]=Number(d[f]); if(!Number.isFinite(d[f])) d[f]=0; }
     for(const f of ['from','to','tank','dev','posTag','runTag','speedTag','pvTag','flowTag','outTag'])
       if(d[f]!==undefined&&typeof d[f]!=='string') delete d[f];
+    // tags name properties of the plain-object tag environment: a name
+    // inherited from Object.prototype would silently swallow every write
+    for(const f of ['posTag','runTag','speedTag','pvTag','flowTag','outTag'])
+      if(d[f]!==undefined&&!validTag(d[f])) delete d[f];
+    // _flow / _over are runtime transients, not file data — never trust them
+    delete d._flow; delete d._over;
+    if(d.type==='ls'&&d.sp===undefined) d.sp=90;
     if(d.type==='plc'){
       d.program=typeof d.program==='string'?d.program:'';
       d.inputs=sanitizeInputs(d.inputs);
