@@ -11,7 +11,8 @@ export const SCAN_MS=100;
    panel only through the hooks, so many panels can coexist. */
 export function createLogicPanel(root, hooksIn={}){
 const hooks=Object.assign({sensorTags:()=>new Set(),actuatorTags:()=>new Map(),
-  publishSensors(){},plantScan(){},plantPaint(){},plantReset(){},onStatus(){}},hooksIn);
+  publishSensors(){},plantScan(){},plantPaint(){},plantReset(){},onStatus(){},
+  onSourceChange(){}},hooksIn);
 const q=n=>root.querySelector('[data-el="'+n+'"]');
 const srcEl=q('src'), errEl=q('err'), inEl=q('inputs'), outEl=q('outputs'),
       canvasEl=q('canvas'), cwarnEl=q('cwarn'), stfile=q('stfile');
@@ -412,6 +413,7 @@ function scanTick(fixedDt){
 }
 
 function run(forceInputs){
+  hooks.onSourceChange(srcEl.value);   // even mid-edit text persists — WIP must not vanish
   errEl.innerHTML='';
   let prog;
   try{ prog=parse(lex(srcEl.value)); }

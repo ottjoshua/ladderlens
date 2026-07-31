@@ -35,7 +35,8 @@ function validDevices(list){
 }
 
 function blank(){
-  return {format:PROJECT_FORMAT, version:PROJECT_VERSION, meta:{name:'untitled plant'}, devices:[]};
+  return {format:PROJECT_FORMAT, version:PROJECT_VERSION, meta:{name:'untitled plant'},
+    devices:[], sandbox:{program:'',inputs:{}}};
 }
 
 /* accept any object shaped like a project, current or older version —
@@ -48,6 +49,9 @@ function normalize(p){
   p.meta=(p.meta&&typeof p.meta==='object')?p.meta:{};
   if(typeof p.meta.name!=='string') p.meta.name='untitled plant';
   p.devices=validDevices(p.devices);
+  if(!p.sandbox||typeof p.sandbox!=='object') p.sandbox={program:'',inputs:{}};
+  p.sandbox.program=typeof p.sandbox.program==='string'?p.sandbox.program:'';
+  p.sandbox.inputs=(p.sandbox.inputs&&typeof p.sandbox.inputs==='object'&&!Array.isArray(p.sandbox.inputs))?p.sandbox.inputs:{};
   return p;
 }
 
@@ -80,16 +84,10 @@ export function createProject(){
     try{ localStorage.setItem(STORE,JSON.stringify(data)); }catch(e){}
   }
 
-  /* the exported file IS the project object; the caller passes the sandbox
-     program + input values, which travel as a controller device until the
-     workspace grows real ones */
-  function toLLP(program,inputs){
+  /* the exported file IS the project object — devices (controllers carry
+     their programs) plus the free-standing sandbox program */
+  function toLLP(){
     const out=JSON.parse(JSON.stringify(data));
-    if(!out.devices.some(d=>d.type==='plc'))
-      out.devices.push({id:'PLC-1',type:'plc',name:'PLC-1',x:40,y:40});
-    const plc=out.devices.find(d=>d.type==='plc');
-    plc.program=String(program||'');
-    plc.inputs=inputs||{};
     out.meta.modified=new Date().toISOString();
     return JSON.stringify(out,null,2);
   }
@@ -100,10 +98,8 @@ export function createProject(){
     catch(e){ throw new Error('not a valid .llp file (bad JSON): '+e.message); }
     p=normalize(p);
     if(!p) throw new Error('not a LadderLens project file (missing "format": "'+PROJECT_FORMAT+'")');
-    const plc=p.devices.find(d=>d.type==='plc');
     adopt(p);
     save();
-    return {program:plc?plc.program:null, inputs:plc?plc.inputs:{}, name:data.meta.name};
   }
 
   return {data, load, save, toLLP, fromLLP};

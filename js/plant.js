@@ -7,7 +7,7 @@ import {esc,truthy,pnum} from './engine.js';
    through hooks.env() — the environment of the controller it is wired to —
    and reports topology changes through hooks.onChange(). */
 export function createPlant(hooksIn={}){
-const hooks=Object.assign({env:()=>({}), onChange(){}, onLoadPair(){}},hooksIn);
+const hooks=Object.assign({env:()=>({}), onChange(){}, onLoadPair(){}, onOpenLogic(){}},hooksIn);
 const env=hooks.env;
 const plant=hooks.project.data;   // devices live in the project model
 
@@ -134,6 +134,12 @@ function symbolSVG(d){
       <text y="3" text-anchor="middle" font-size="8" fill="#e0864a">LT</text>
       <text y="-16" text-anchor="middle" font-size="10">${esc(d.name)}</text>
       <text data-pvtxt y="24" text-anchor="middle" font-size="9" fill="#7fa89a">${esc(d.pvTag||'—')}</text></g>`;
+    case 'plc': return g+`
+      <rect class="hull" x="-26" y="-18" width="52" height="36" rx="4" fill="#131a22" stroke="#4a7dab" stroke-width="1.5"/>
+      <line x1="-26" y1="-8" x2="26" y2="-8" stroke="#2c4a66" stroke-width="1"/>
+      <circle cx="-20" cy="-13" r="2" fill="#5fd38d"/>
+      <text y="8" text-anchor="middle" font-size="9" fill="#7fb2e0">PLC</text>
+      <text y="-24" text-anchor="middle" font-size="10">${esc(d.name)}</text></g>`;
     case 'supply': return g+`
       <circle class="hull" r="10" fill="#151a1e" stroke="#6c7a85" stroke-width="1.5"/>
       <path d="M -4 0 L 6 0 M 2 -4 L 6 0 L 2 4" stroke="#6c7a85" stroke-width="1.5" fill="none"/>
@@ -234,6 +240,11 @@ svgEl.addEventListener('pointermove',e=>{
   if(nx!==d.x||ny!==d.y){ d.x=nx; d.y=ny; pDrag.moved=true; plantRebuild(); plantPaint(); }
 });
 svgEl.addEventListener('pointerup',()=>{ if(pDrag&&pDrag.moved) plantSave(); pDrag=null; });
+svgEl.addEventListener('dblclick',e=>{
+  const g=e.target.closest('.sym'); if(!g) return;
+  const d=pById(g.dataset.pid);
+  if(d&&d.type==='plc') hooks.onOpenLogic(d.id);
+});
 
 function renderInspector(){
   const el=document.getElementById('pinspect');
@@ -259,6 +270,8 @@ function renderInspector(){
     <div class="irow"><label>max %/s</label><input data-pf="maxFlow" type="number" value="${d.maxFlow!==undefined?d.maxFlow:5}"></div>
     <div class="irow"><label>run tag</label><input data-pf="runTag" value="${esc(d.runTag||'')}" placeholder="BOOL, empty = always run"></div>
     <div class="irow"><label>speed tag</label><input data-pf="speedTag" value="${esc(d.speedTag||'')}" placeholder="0–100, empty = 100"></div>`;
+  if(d.type==='plc') rows+=`
+    <div class="irow"><button class="fbtn" data-popen="${esc(d.id)}">open logic — edit this controller's program</button></div>`;
   if(d.type==='lt') rows+=`
     <div class="irow"><label>tank</label><select data-pf="tank">${opts(['tank'],d.tank)}</select></div>
     <div class="irow"><label>PV tag</label><input data-pf="pvTag" value="${esc(d.pvTag||'')}" placeholder="e.g. rLevel_PV"></div>`;
@@ -281,6 +294,8 @@ document.getElementById('pinspect').addEventListener('change',e=>{
   hooks.onChange();
 });
 document.getElementById('pinspect').addEventListener('click',e=>{
+  const open=e.target.dataset.popen;
+  if(open){ hooks.onOpenLogic(open); return; }
   const del=e.target.dataset.pdel; if(!del) return;
   plant.devices=plant.devices.filter(x=>x.id!==del);
   for(const d of plant.devices){
@@ -293,13 +308,14 @@ document.getElementById('pinspect').addEventListener('click',e=>{
 });
 document.querySelectorAll('[data-padd]').forEach(b=>b.addEventListener('click',()=>{
   const t=b.dataset.padd;
-  const base={tank:'TK',valve:'LV',pump:'P',lt:'LT',supply:'SUP',drain:'DR'}[t];
+  const base={tank:'TK',valve:'LV',pump:'P',lt:'LT',supply:'SUP',drain:'DR',plc:'PLC'}[t];
   let n=1; while(plant.devices.some(d=>d.id===base+'-'+n)) n++;
   const d={id:base+'-'+n,type:t,name:base+'-'+n,
     x:90+((plant.devices.length*40)%300),y:90+((plant.devices.length%5)*70)};
   if(t==='tank'){ d.level=0; d.level0=0; }
   if(t==='valve'){ d.maxFlow=5; d.posConst=0; }
   if(t==='pump'){ d.maxFlow=5; }
+  if(t==='plc'){ d.program='(* '+d.name+' — write this controller\'s logic here *)\n'; d.inputs={}; }
   plant.devices.push(d); pSel=d.id;
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();
 }));
@@ -310,6 +326,7 @@ document.getElementById('pclear').addEventListener('click',()=>{
 
 function plantExample(){
   plant.devices=[
+    {id:'PLC-1',type:'plc',name:'PLC-1',x:120,y:260,program:'',inputs:{}},
     {id:'SUP-1',type:'supply',name:'SUPPLY',x:70,y:120},
     {id:'LV-101',type:'valve',name:'LV-101',x:190,y:120,from:'SUP-1',to:'TK-101',maxFlow:6,posTag:'rValve_OP'},
     {id:'TK-101',type:'tank',name:'TK-101',x:350,y:230,level:40,level0:40},

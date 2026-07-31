@@ -1,0 +1,197 @@
+/* Required Notice: Copyright (c) 2026 Joshua Ott — LadderLens (https://ladderlens.com)
+   PolyForm Noncommercial 1.0.0 — commercial use requires a separate license. */
+
+:root{
+  --bg:#14171a; --panel:#1b2126; --panel2:#212930;
+  --rail:#c8963e; --rail-dim:#6d5327;
+  --wire:#6c7a85; --hot:#5fd38d; --hot-dim:#2e6b48;
+  --blk:#1e2a31; --blk-edge:#3d7a6b; --blk-txt:#9fe3cb;
+  --ink:#c9d1d6; --dim:#6b7780; --warn:#e0864a;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"DejaVu Sans Mono",monospace;
+  --ui:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:14px}
+header{padding:18px 22px 14px;border-bottom:1px solid #262e35;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-family:var(--mono)}
+h1 span{color:var(--rail)}
+.sub{color:var(--dim);font-size:12px;font-family:var(--mono)}
+.wrap{display:grid;grid-template-columns:minmax(340px,1fr) minmax(420px,1.35fr);gap:0;min-height:calc(100vh - 58px)}
+.wrap[hidden]{display:none}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.pane{padding:16px 20px;min-width:0}
+.pane+.pane{border-left:1px solid #262e35}
+@media(max-width:900px){.pane+.pane{border-left:0;border-top:1px solid #262e35}}
+.lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+textarea{width:100%;height:290px;background:var(--panel);color:var(--ink);border:1px solid #2b343c;border-radius:5px;
+  font-family:var(--mono);font-size:12.5px;line-height:1.65;padding:12px;resize:vertical;tab-size:2}
+textarea:focus{outline:2px solid var(--rail);outline-offset:-1px}
+.bar{display:flex;gap:8px;margin:10px 0 0;flex-wrap:wrap}
+.barlbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);align-self:center;margin-right:2px}
+.phead{display:flex;align-items:baseline;gap:8px}
+.phead .sp{flex:1}
+.fbtn{background:transparent;border:1px dashed #3a444d;color:var(--dim);padding:4px 9px;font-size:10.5px}
+.fbtn:hover{border-color:var(--rail);color:var(--rail)}
+button{background:var(--panel2);color:var(--ink);border:1px solid #333e47;border-radius:4px;padding:6px 11px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;cursor:pointer}
+button:hover{border-color:var(--rail);color:#fff}
+button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
+.vars{margin-top:18px}
+.vgrid{display:grid;grid-template-columns:1fr auto;gap:5px 10px;align-items:center}
+.vgrid label{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.vgrid input[type=number]{width:88px;background:var(--panel);border:1px solid #2b343c;color:var(--hot);
+  font-family:var(--mono);font-size:12px;padding:4px 6px;border-radius:3px;text-align:right}
+.vgrid input:focus{outline:1px solid var(--rail)}
+.tog{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.tog input{accent-color:var(--hot);width:15px;height:15px}
+.out{font-family:var(--mono);font-size:12px;color:var(--hot);text-align:right;padding-right:2px}
+.err{background:#2a1a17;border:1px solid #6b3428;color:#e8a08a;padding:9px 11px;border-radius:4px;
+  font-family:var(--mono);font-size:11.5px;margin-top:10px;white-space:pre-wrap}
+/* ladder canvas — .canvas is the scroll viewport, .lad is the content;
+   the power rails live on .lad so they sit at the true content edges and
+   scroll with wide rungs instead of cutting through them */
+.canvas{position:relative;background:var(--panel);border:1px solid #2b343c;border-radius:5px;overflow-x:auto}
+.lad{position:relative;min-width:100%;width:max-content;padding:14px 30px 30px 62px}
+.lad::before,.lad::after{content:"";position:absolute;top:8px;bottom:22px;width:3px;background:var(--rail);border-radius:2px}
+.lad::before{left:44px}.lad::after{right:14px}
+.retpath{position:absolute;left:0;top:0;width:44px;overflow:visible;pointer-events:none}
+.retlbl{position:absolute;left:56px;bottom:7px;font-family:var(--mono);font-size:10.5px;color:var(--dim);white-space:nowrap}
+.retlbl b{color:var(--rail);font-weight:500}
+.rung{position:relative;padding:14px 0 16px}
+.rung+.rung{border-top:1px dashed #2b343c}
+.rnote{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.08em;margin-bottom:9px}
+.rnote b{color:var(--rail);font-weight:600}
+/* the rung conductor line sits at a fixed 29px from the row top, so parallel
+   groups can hang branches below while the main line stays straight */
+.row{display:flex;align-items:flex-start;gap:0;min-width:min-content}
+.w{height:2px;background:var(--wire);flex:0 0 22px;margin-top:28px}
+.w.f{flex:1 1 22px;min-width:22px}
+.w.pw{flex:0 0 14px}
+.par{display:flex;align-items:flex-start;flex:0 0 auto}
+.pwrap{position:relative}
+.pbranches{display:flex;flex-direction:column}
+.pbranch{display:flex;align-items:flex-start}
+.pbar{position:absolute;width:2px;background:var(--wire)}
+.pbar.on{background:var(--hot);box-shadow:0 0 5px var(--hot-dim)}
+.pbarL{left:0}
+.pbarR{right:0}
+.parbtns{display:flex;flex-direction:column;gap:3px;margin-top:22px}
+.addbr{background:transparent;border:1px dashed #3a444d;color:var(--dim);border-radius:3px;
+  padding:2px 6px;font-size:10px;margin:0 2px;opacity:.55;flex:0 0 auto}
+.addbr:hover{opacity:1;border-color:var(--rail);color:var(--rail)}
+/* end wires reach across the padding to land on the power rails */
+.row>.w:first-child{margin-left:-15px}
+.row>.w:last-child{margin-right:-13px}
+.w.on{background:var(--hot);box-shadow:0 0 5px var(--hot-dim)}
+.contact{position:relative;display:flex;flex-direction:column;align-items:center;flex:0 0 auto;padding:0 4px 16px}
+/* conductor stubs so wide-tagged contacts still reach their wires; they stop
+   at the glyph edge so an open contact keeps its visible gap */
+.contact::before,.contact::after{content:"";position:absolute;top:28px;height:2px;background:var(--wire);width:calc(50% - 15px)}
+.contact::before{left:0}.contact::after{right:0}
+.contact.on::before,.contact.on::after{background:var(--hot)}
+.ctag{font-family:var(--mono);font-size:10px;line-height:12px;color:var(--dim);white-space:nowrap;margin-bottom:4px}
+.contact.on .ctag{color:var(--hot)}
+.cglyph{display:block;width:30px;height:26px;color:var(--wire)}
+.contact.on .cglyph{color:var(--hot)}
+.blk{flex:0 0 auto;background:var(--blk);border:1px solid var(--blk-edge);border-radius:6px;padding:6px 10px 7px;margin:6px 2px 0}
+.blk.on{border-color:var(--hot);box-shadow:0 0 0 1px var(--hot-dim)}
+.bname{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--blk-txt);letter-spacing:.1em;text-align:center;margin-bottom:4px}
+.bio{font-family:var(--mono);font-size:10.5px;color:#7fa89a;white-space:nowrap;line-height:1.5}
+.bio i{color:var(--dim);font-style:normal;display:inline-block;width:30px}
+.coil{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;padding:0 4px;margin-top:8px}
+.ctag2{font-family:var(--mono);font-size:10.5px;color:var(--ink);white-space:nowrap;margin-bottom:4px}
+.coil.on .ctag2{color:var(--hot)}
+.val{font-family:var(--mono);font-size:10px;color:var(--warn);margin-top:4px;white-space:nowrap}
+.cpat{margin-top:12px;border-top:1px dashed #4a3c2e;padding-top:11px;display:flex;flex-direction:column;gap:9px}
+.crung{display:flex;align-items:center;gap:0;font-family:var(--mono);font-size:11px;flex-wrap:nowrap;min-width:0}
+.cl{flex:0 0 auto;width:18px;color:var(--warn);font-weight:600}
+.crail{flex:0 0 3px;align-self:stretch;background:var(--rail-dim);border-radius:2px;min-height:24px}
+.ccontact{flex:0 0 auto;color:#d8c3ac;padding:3px 8px;border:1px solid #4a3c2e;border-radius:3px;
+  background:#1d1712;white-space:nowrap;margin-left:2px}
+.cwire{flex:0 0 14px;height:2px;background:#4a3c2e}
+.cblk{flex:1 1 auto;color:var(--blk-txt);padding:4px 9px;border:1px solid var(--blk-edge);border-radius:4px;
+  background:var(--blk);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ccoil{flex:0 0 auto;color:#d8c3ac;padding:0 2px;letter-spacing:2px}
+.cnote{flex:0 0 auto;color:var(--dim);font-size:10px;margin-left:12px;white-space:nowrap}
+@media(max-width:1200px){.cnote{display:none}}
+.noladder{border:1px dashed var(--warn);border-radius:6px;padding:10px 13px;background:#241d18;contain:inline-size}
+.nlhead{font-family:var(--mono);font-size:12px;color:var(--warn);letter-spacing:.04em;margin-bottom:6px}
+.nlbody{font-family:var(--mono);font-size:11px;line-height:1.75;color:#a8917c}
+.nlbody b{color:var(--warn);font-weight:500}
+.nlbody em{color:#d8c3ac;font-style:italic}
+.warnbox{background:#241d18;border:1px dashed var(--warn);border-radius:5px;padding:9px 12px;margin-top:11px;
+  font-family:var(--mono);font-size:11px;line-height:1.7;color:#c9a888}
+.warnbox b{color:var(--warn);font-weight:500}
+.legend{margin-top:14px;font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.9}
+.legend b{color:var(--ink);font-weight:500}
+.scan{display:flex;align-items:center;gap:9px;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.scan .sp{flex:1}
+.scan button{background:transparent;border:1px dashed #3a444d;color:var(--dim);padding:3px 9px;
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.scan button:hover{border-color:var(--rail);color:var(--rail)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--hot);animation:p 1s steps(1) infinite;flex:0 0 auto}
+.dot.stop{animation:none;opacity:.2}
+@keyframes p{0%,49%{opacity:1}50%,100%{opacity:.15}}
+@media(prefers-reduced-motion:reduce){.dot{animation:none}}
+/* diagram editing */
+.rhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.rhead .rnote{margin-bottom:0}
+.rhead .sp{flex:1}
+.drag{cursor:grab;color:var(--dim);font-family:var(--mono);font-size:11px;user-select:none;letter-spacing:-1px}
+.drag:hover{color:var(--rail)}
+.drag:active{cursor:grabbing}
+.cx{background:transparent;border:0;color:var(--dim);font-size:13px;line-height:1;padding:0 3px;cursor:pointer;opacity:0;transition:opacity .12s}
+.rhead:hover .cx,.contact:hover .cx{opacity:1}
+.cx:hover{color:var(--warn)}
+@media(hover:none){.cx{opacity:.55}}
+.contact .cx{position:absolute;top:-7px;right:-5px;font-size:11px}
+.ctag,.ctag2,.pinv{cursor:text}
+.ctag:hover,.ctag2:hover,.pinv:hover{text-decoration:underline dotted}
+.cglyph{cursor:pointer}
+.pinv{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.addc{background:transparent;border:1px dashed #3a444d;color:var(--dim);border-radius:3px;padding:2px 6px;
+  font-size:10px;margin:22px 3px 0;opacity:.55;flex:0 0 auto}
+.addc:hover{opacity:1;border-color:var(--rail);color:var(--rail)}
+input.inline{background:#151a1e;border:1px solid var(--rail);color:var(--ink);font-family:var(--mono);
+  font-size:10.5px;padding:2px 5px;border-radius:3px;width:120px}
+input.inline.bad{border-color:#c0564a;color:#e8a08a}
+select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt);font-family:var(--mono);
+  font-size:11px;padding:1px 2px;border-radius:3px}
+.rung.dragover{outline:1px dashed var(--rail);outline-offset:-4px}
+.contact.dragover,.addc.dragover{outline:1px dashed var(--rail)}
+.canvasbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+/* view switch */
+.modes{display:flex;gap:0;border:1px solid #333e47;border-radius:5px;overflow:hidden}
+.proj{display:flex;gap:6px;align-items:center}
+.ltargets{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:2px 2px 0;
+  font-family:var(--mono);font-size:11px}
+.tchip{background:transparent;border:1px dashed #3a444d;color:var(--dim);
+  padding:3px 10px;font-size:11px;font-family:var(--mono);cursor:pointer;border-radius:4px}
+.tchip:hover{border-color:var(--rail);color:var(--rail)}
+.tchip.on{border-style:solid;border-color:var(--hot);color:var(--hot)}
+.mode{background:transparent;border:0;border-radius:0;padding:6px 13px;color:var(--dim);font-size:11px}
+.mode+.mode{border-left:1px solid #333e47}
+.mode.on{background:var(--rail);color:#14171a;font-weight:600}
+.mode:hover:not(.on){color:var(--ink)}
+header .scan{margin-top:0;flex:0 0 auto}
+/* plant view */
+#pcanvas{display:block;width:100%;height:440px;background:var(--panel);border:1px solid #2b343c;border-radius:5px;
+  touch-action:none;user-select:none}
+#pcanvas text{font-family:var(--mono);fill:var(--ink);pointer-events:none}
+#pcanvas .sym{cursor:grab}
+#pcanvas .sym.sel .hull{stroke:var(--rail)!important;stroke-width:2}
+#pcanvas .pipe{stroke:var(--wire);stroke-width:2.5;fill:none}
+#pcanvas .pipe.flowing{stroke:var(--hot);stroke-dasharray:7 5;animation:pf .5s linear infinite}
+@keyframes pf{to{stroke-dashoffset:-12}}
+@media(prefers-reduced-motion:reduce){#pcanvas .pipe.flowing{animation:none}}
+#pcanvas .instline{stroke:var(--dim);stroke-width:1;stroke-dasharray:3 3;fill:none}
+#pcanvas .tanklevel{fill:var(--hot-dim)}
+#pcanvas .tanklevel.hi{fill:#6b3428}
+#pinspect{background:var(--panel);border:1px solid #2b343c;border-radius:5px;padding:11px 13px;margin-top:10px;
+  font-family:var(--mono);font-size:11px;color:var(--dim)}
+#pinspect .irow{display:flex;align-items:center;gap:8px;margin:5px 0;flex-wrap:wrap}
+#pinspect label{min-width:70px;color:var(--dim)}
+#pinspect input,#pinspect select{background:#151a1e;border:1px solid #2b343c;color:var(--ink);
+  font-family:var(--mono);font-size:11px;padding:3px 6px;border-radius:3px;width:130px}
+#pinspect .warnnote{color:var(--warn)}
+#ptags label{font-family:var(--mono);font-size:12px;color:var(--ink)}

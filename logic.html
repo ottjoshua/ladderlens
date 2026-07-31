@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  LadderLens — Structured Text <-> Ladder Diagram tool
+  LadderLens Logic — the standalone Structured Text <-> Ladder Diagram editor
   Required Notice: Copyright (c) 2026 Joshua Ott — LadderLens (https://ladderlens.com)
   Licensed under the PolyForm Noncommercial License 1.0.0 — see LICENSE.
   Commercial use requires a separate license: https://github.com/ottjoshua
@@ -10,35 +10,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Convert between IEC 61131-3 Structured Text and Ladder Diagram in the browser, with live evaluation — watch rungs energize as inputs change. Offline, single file, no dependencies.">
+<meta name="description" content="Convert between IEC 61131-3 Structured Text and Ladder Diagram in the browser, with a real simulated scan cycle. The standalone logic editor from the LadderLens OT workspace.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314171a'/%3E%3Cpath d='M6 4v24M26 4v24' stroke='%23c8963e' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M6 12h20M6 22h20' stroke='%235fd38d' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
-<title>LadderLens — Structured Text ⇄ Ladder Diagram</title>
+<title>LadderLens Logic — Structured Text ⇄ Ladder Diagram</title>
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
 <header>
-  <h1>Ladder<span>Lens</span></h1>
-  <div class="modes">
-    <button class="mode on" data-view="pid">P&amp;ID</button>
-    <button class="mode" data-view="logic">Logic</button>
-  </div>
-  <div class="proj">
-    <button id="openproj" class="fbtn" title="open a .llp project file — plant devices and logic together">open project</button>
-    <button id="exportproj" class="fbtn" title="download the whole workspace (plant + logic) as a .llp project file">export project</button>
-    <input type="file" id="projfile" accept=".llp,.json" hidden>
-  </div>
+  <h1>Ladder<span>Lens</span> <span style="color:var(--dim);font-size:15px">logic</span></h1>
   <div class="scan">
     <span class="dot" id="dot"></span><span id="scanmsg">every rung re-evaluates each scan</span>
     <span class="sp"></span>
     <button id="runbtn" title="start / stop the scan cycle">stop</button>
     <button id="stepbtn" title="execute one scan (when stopped)">step</button>
-    <button id="resetbtn" title="cold restart — clears retained state, timers, counters and tank levels">reset</button>
+    <button id="resetbtn" title="cold restart — clears retained state, timers and counters">reset</button>
   </div>
-  <div class="sub">Structured Text ⇄ Ladder Diagram · IEC 61131-3 · edit either side &nbsp;·&nbsp; <span style="color:var(--dim)">by Joshua Ott</span></div>
+  <div class="sub">Structured Text ⇄ Ladder Diagram · IEC 61131-3 · edit either side &nbsp;·&nbsp;
+    <a href="./index.html" style="color:var(--rail)">open the full workspace — P&amp;ID, plant &amp; controllers →</a> &nbsp;·&nbsp;
+    <span style="color:var(--dim)">by Joshua Ott</span></div>
 </header>
 
-<div class="wrap" id="readwrap" hidden>
-  <div class="ltargets"><span class="barlbl">editing</span><span data-el="targets"></span></div>
+<div class="wrap" id="readwrap">
   <section class="pane">
     <div class="phead">
       <p class="lbl">Structured text</p>
@@ -91,47 +83,31 @@
   </section>
 </div>
 
-<div class="wrap" id="plantwrap">
-  <section class="pane">
-    <p class="lbl">P&amp;ID — plant &amp; control</p>
-    <svg id="pcanvas" xmlns="http://www.w3.org/2000/svg"></svg>
-    <div class="bar">
-      <span class="barlbl">add</span>
-      <button data-padd="plc">controller</button>
-      <button data-padd="tank">tank</button>
-      <button data-padd="valve">valve</button>
-      <button data-padd="pump">pump</button>
-      <button data-padd="lt">transmitter</button>
-      <button data-padd="supply">supply</button>
-      <button data-padd="drain">drain</button>
-      <span class="barlbl">examples</span>
-      <button id="pex1">level control plant</button>
-      <button id="pclear">clear</button>
-    </div>
-    <div id="pinspect">click a device to configure it — drag to move</div>
-  </section>
-  <section class="pane">
-    <p class="lbl">Live tags</p>
-    <div class="vgrid" id="ptags"><span class="out" style="color:var(--dim)">no bound tags</span></div>
-    <div class="legend">
-      the plant runs on the same scan as the logic: transmitters write their tank's level into
-      their tag <b>before</b> each scan, the logic runs, then valves and pumps move flow and
-      tanks integrate it<br><br>
-      <b>valve</b> opens to its tag's value (0–100) · <b>pump</b> runs from a BOOL tag ·
-      <b>LT</b> publishes tank level · flows animate where liquid moves ·
-      a full tank with net inflow shows <b>overflow</b><br><br>
-      a <b>controller</b> is a device too: select it and press <b>open logic</b> (or double-click
-      it) to edit the program it runs · the Logic view shows which program you are editing —
-      a controller's, or the free-standing <b>sandbox</b><br><br>
-      try the <b>level control plant</b>, watch it settle near SP — then load the
-      <b>sign error</b> logic example and watch the same plant run away · the workspace is saved
-      in this browser and travels as a <b>.llp</b> project file; a .st file carries logic alone
-    </div>
-  </section>
-</div>
+<script type="module">
+/* Required Notice: Copyright (c) 2026 Joshua Ott — LadderLens (https://ladderlens.com)
+   PolyForm Noncommercial 1.0.0 — commercial use requires a separate license. */
+import {createLogicPanel, SCAN_MS} from './js/ladder.js';
+import {EX, EX_DEFAULTS} from './js/examples.js';
 
+const dotEl=document.getElementById('dot'), msgEl=document.getElementById('scanmsg');
+const runBtn=document.getElementById('runbtn');
+const panel=createLogicPanel(document.getElementById('readwrap'),{
+  onStatus:s=>{
+    runBtn.textContent = s.running?'stop':'run';
+    dotEl.classList.toggle('stop', !s.running||s.faulted||s.stale);
+    msgEl.textContent = s.msg;
+  }
+});
+runBtn.addEventListener('click',()=>panel.toggleRun());
+document.getElementById('stepbtn').addEventListener('click',()=>panel.step());
+document.getElementById('resetbtn').addEventListener('click',()=>panel.reset());
 
-<script type="module" src="./js/shell.js"></script>
+setInterval(()=>{ if(panel.isRunning()&&!document.hidden) panel.scanTick(); }, SCAN_MS);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) panel.clockReset(); });
+document.addEventListener('dragover',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+document.addEventListener('drop',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+
+panel.coldStart(EX.ex1, EX_DEFAULTS.ex1);
+</script>
 </body>
 </html>
-
