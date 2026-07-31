@@ -53,11 +53,14 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .out{font-family:var(--mono);font-size:12px;color:var(--hot);text-align:right;padding-right:2px}
 .err{background:#2a1a17;border:1px solid #6b3428;color:#e8a08a;padding:9px 11px;border-radius:4px;
   font-family:var(--mono);font-size:11.5px;margin-top:10px;white-space:pre-wrap}
-/* ladder canvas */
-.canvas{position:relative;background:var(--panel);border:1px solid #2b343c;border-radius:5px;padding:14px 30px 30px 62px;overflow-x:auto}
-.canvas::before,.canvas::after{content:"";position:absolute;top:8px;bottom:22px;width:3px;background:var(--rail);border-radius:2px}
-.canvas::before{left:44px}.canvas::after{right:14px}
-.retpath{position:absolute;left:0;top:0;width:44px;pointer-events:none}
+/* ladder canvas — .canvas is the scroll viewport, .lad is the content;
+   the power rails live on .lad so they sit at the true content edges and
+   scroll with wide rungs instead of cutting through them */
+.canvas{position:relative;background:var(--panel);border:1px solid #2b343c;border-radius:5px;overflow-x:auto}
+.lad{position:relative;min-width:100%;width:max-content;padding:14px 30px 30px 62px}
+.lad::before,.lad::after{content:"";position:absolute;top:8px;bottom:22px;width:3px;background:var(--rail);border-radius:2px}
+.lad::before{left:44px}.lad::after{right:14px}
+.retpath{position:absolute;left:0;top:0;width:44px;overflow:visible;pointer-events:none}
 .retlbl{position:absolute;left:56px;bottom:7px;font-family:var(--mono);font-size:10.5px;color:var(--dim);white-space:nowrap}
 .retlbl b{color:var(--rail);font-weight:500}
 .rung{position:relative;padding:14px 0 16px}
@@ -67,11 +70,19 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .row{display:flex;align-items:center;gap:0;min-width:min-content}
 .w{height:2px;background:var(--wire);flex:0 0 22px}
 .w.f{flex:1 1 22px;min-width:22px}
+/* end wires reach across the padding to land on the power rails */
+.row>.w:first-child{margin-left:-15px}
+.row>.w:last-child{margin-right:-13px}
 .w.on{background:var(--hot);box-shadow:0 0 5px var(--hot-dim)}
-.contact{position:relative;display:flex;flex-direction:column;align-items:center;flex:0 0 auto;padding:0 4px}
-.ctag{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap;margin-bottom:4px}
+.contact{position:relative;display:flex;flex-direction:column;align-items:center;flex:0 0 auto;padding:0 4px 16px}
+/* conductor stubs so wide-tagged contacts still reach their wires; they stop
+   at the glyph edge so an open contact keeps its visible gap */
+.contact::before,.contact::after{content:"";position:absolute;top:28px;height:2px;background:var(--wire);width:calc(50% - 15px)}
+.contact::before{left:0}.contact::after{right:0}
+.contact.on::before,.contact.on::after{background:var(--hot)}
+.ctag{font-family:var(--mono);font-size:10px;line-height:12px;color:var(--dim);white-space:nowrap;margin-bottom:4px}
 .contact.on .ctag{color:var(--hot)}
-.cglyph{width:30px;height:26px}
+.cglyph{display:block;width:30px;height:26px}
 .blk{flex:0 0 auto;background:var(--blk);border:1px solid var(--blk-edge);border-radius:6px;padding:6px 10px 7px;margin:0 2px}
 .blk.on{border-color:var(--hot);box-shadow:0 0 0 1px var(--hot-dim)}
 .bname{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--blk-txt);letter-spacing:.1em;text-align:center;margin-bottom:4px}
@@ -93,39 +104,11 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .ccoil{flex:0 0 auto;color:#d8c3ac;padding:0 2px;letter-spacing:2px}
 .cnote{flex:0 0 auto;color:var(--dim);font-size:10px;margin-left:12px;white-space:nowrap}
 @media(max-width:1200px){.cnote{display:none}}
-.noladder{border:1px dashed var(--warn);border-radius:6px;padding:10px 13px;background:#241d18}
+.noladder{border:1px dashed var(--warn);border-radius:6px;padding:10px 13px;background:#241d18;contain:inline-size}
 .nlhead{font-family:var(--mono);font-size:12px;color:var(--warn);letter-spacing:.04em;margin-bottom:6px}
 .nlbody{font-family:var(--mono);font-size:11px;line-height:1.75;color:#a8917c}
 .nlbody b{color:var(--warn);font-weight:500}
 .nlbody em{color:#d8c3ac;font-style:italic}
-.modes{display:flex;gap:0;border:1px solid #333e47;border-radius:5px;overflow:hidden}
-.mode{background:transparent;border:0;border-radius:0;padding:6px 13px;color:var(--dim);font-size:11px}
-.mode+.mode{border-left:1px solid #333e47}
-.mode.on{background:var(--rail);color:#14171a;font-weight:600}
-.mode:hover:not(.on){color:var(--ink)}
-.re{background:var(--panel);border:1px solid #2b343c;border-radius:6px;padding:11px 13px;margin-bottom:11px}
-.rehead{display:flex;align-items:center;gap:9px;margin-bottom:9px}
-.rehead .n{font-family:var(--mono);font-size:11px;color:var(--rail);font-weight:600;letter-spacing:.08em}
-.rehead .sp{flex:1}
-.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.chip{display:flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid #333e47;
-  border-radius:4px;padding:4px 6px}
-.chip.k{border-color:var(--blk-edge);background:var(--blk)}
-.chip select,.chip input{background:#151a1e;border:1px solid #2b343c;color:var(--ink);
-  font-family:var(--mono);font-size:11px;padding:3px 5px;border-radius:3px}
-.chip input{width:104px}
-.chip select{cursor:pointer}
-.chip .x{background:transparent;border:0;color:var(--dim);padding:0 2px;font-size:14px;line-height:1;cursor:pointer}
-.chip .x:hover{color:var(--warn)}
-.mini{background:transparent;border:1px dashed #3a444d;color:var(--dim);padding:4px 8px;font-size:10.5px}
-.mini:hover{border-color:var(--rail);color:var(--rail)}
-.tgt{display:flex;align-items:center;gap:7px;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--dim)}
-.tgt input{background:#151a1e;border:1px solid #2b343c;color:var(--hot);font-family:var(--mono);
-  font-size:11.5px;padding:4px 7px;border-radius:3px;width:170px}
-.gen{background:var(--panel);border:1px solid #2b343c;border-radius:5px;padding:13px;margin:0;
-  font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink);white-space:pre-wrap;min-height:250px}
-.gen .kw{color:var(--rail)}
-.gen .cm{color:var(--dim)}
 .warnbox{background:#241d18;border:1px dashed var(--warn);border-radius:5px;padding:9px 12px;margin-top:11px;
   font-family:var(--mono);font-size:11px;line-height:1.7;color:#c9a888}
 .warnbox b{color:var(--warn);font-weight:500}
@@ -135,16 +118,39 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--hot);animation:p 1s steps(1) infinite}
 @keyframes p{0%,49%{opacity:1}50%,100%{opacity:.15}}
 @media(prefers-reduced-motion:reduce){.dot{animation:none}}
+/* diagram editing */
+.rhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.rhead .rnote{margin-bottom:0}
+.rhead .sp{flex:1}
+.drag{cursor:grab;color:var(--dim);font-family:var(--mono);font-size:11px;user-select:none;letter-spacing:-1px}
+.drag:hover{color:var(--rail)}
+.drag:active{cursor:grabbing}
+.cx{background:transparent;border:0;color:var(--dim);font-size:13px;line-height:1;padding:0 3px;cursor:pointer;opacity:0;transition:opacity .12s}
+.rhead:hover .cx,.contact:hover .cx{opacity:1}
+.cx:hover{color:var(--warn)}
+@media(hover:none){.cx{opacity:.55}}
+.contact .cx{position:absolute;top:-7px;right:-5px;font-size:11px}
+.ctag,.ctag2,.pinv{cursor:text}
+.ctag:hover,.ctag2:hover,.pinv:hover{text-decoration:underline dotted}
+.cglyph{cursor:pointer}
+.pinv{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.addc{background:transparent;border:1px dashed #3a444d;color:var(--dim);border-radius:3px;padding:2px 6px;
+  font-size:10px;margin:0 3px;opacity:.55;flex:0 0 auto}
+.addc:hover{opacity:1;border-color:var(--rail);color:var(--rail)}
+input.inline{background:#151a1e;border:1px solid var(--rail);color:var(--ink);font-family:var(--mono);
+  font-size:10.5px;padding:2px 5px;border-radius:3px;width:120px}
+input.inline.bad{border-color:#c0564a;color:#e8a08a}
+select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt);font-family:var(--mono);
+  font-size:11px;padding:1px 2px;border-radius:3px}
+.rung.dragover{outline:1px dashed var(--rail);outline-offset:-4px}
+.contact.dragover,.addc.dragover{outline:1px dashed var(--rail)}
+.canvasbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 </style>
 </head>
 <body>
 <header>
   <h1>Ladder<span>Lens</span></h1>
-  <div class="modes">
-    <button class="mode on" data-mode="read">Text → Ladder</button>
-    <button class="mode" data-mode="build">Ladder → Text</button>
-  </div>
-  <div class="sub">Structured Text ⇄ Ladder Diagram · IEC 61131-3 &nbsp;·&nbsp; <span style="color:var(--dim)">by Joshua Ott</span></div>
+  <div class="sub">Structured Text ⇄ Ladder Diagram · IEC 61131-3 · edit either side &nbsp;·&nbsp; <span style="color:var(--dim)">by Joshua Ott</span></div>
 </header>
 
 <div class="wrap" id="readwrap">
@@ -157,6 +163,11 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
       <button id="ex3">Interlock</button>
       <button id="ex4">CASE</button>
       <button id="ex5">FOR loop</button>
+    </div>
+    <div class="bar">
+      <button id="openst" title="load a Structured Text file (or drop one on the editor)">open .st file</button>
+      <button id="exportst" title="download the current program as a .st file">export .st</button>
+      <input type="file" id="stfile" accept=".st,.stx,.iecst,.txt,.exp,.pou" hidden>
     </div>
     <div id="err"></div>
 
@@ -171,29 +182,18 @@ button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
   <section class="pane">
     <p class="lbl">Ladder diagram</p>
     <div class="canvas" id="canvas"></div>
+    <div class="canvasbar"><button id="addrung">+ rung</button></div>
+    <div id="cwarn"></div>
     <div class="scan"><span class="dot"></span><span id="scanmsg">every rung re-evaluates each scan</span></div>
     <div class="legend">
       <b>[ ]</b> normally open — passes power when TRUE &nbsp;·&nbsp; <b>[/]</b> normally closed — passes power when FALSE<br>
       <b>green</b> = energized this scan &nbsp;·&nbsp; arithmetic uses function blocks, not operators<br>
-      an <b>IF/ELSE</b> in text becomes two rungs gated by the same variable and its complement
-    </div>
-  </section>
-</div>
-
-<div class="wrap" id="buildwrap" hidden>
-  <section class="pane">
-    <p class="lbl">Rungs</p>
-    <div id="rungedit"></div>
-    <div class="bar"><button id="addrung">+ rung</button><button id="seed">Load level controller rungs</button><button id="clearall">Clear</button></div>
-  </section>
-  <section class="pane">
-    <p class="lbl">Generated structured text</p>
-    <pre id="gen" class="gen"></pre>
-    <div id="genwarn"></div>
-    <div class="legend" style="margin-top:16px">
-      Two rungs writing the same tag through a variable and its complement collapse into one
-      <b>IF / ELSE</b>. A single gated rung cannot — when it goes false the tag holds its old value,
-      which is the mistake people make converting ladder to text by hand.
+      an <b>IF/ELSE</b> in text becomes two rungs gated by the same variable and its complement<br><br>
+      <b>the diagram is editable:</b> click a tag, pin, or coil to rename it · click a contact symbol
+      to flip <b>[ ]</b>/<b>[/]</b> · drag <b>⋮⋮</b> to reorder rungs · drag contacts to reorder them ·
+      <b>×</b> deletes · type any expression into a pin<br>
+      diagram edits regenerate the text in flat rung form — complementary rungs collapse back to
+      <b>IF/ELSE</b>, comments are dropped
     </div>
   </section>
 </div>
@@ -299,7 +299,8 @@ function parse(tokens){
     if(up()==='FOR') return forStmt();
     if(up()==='WHILE') return whileStmt();
     const target=eat();
-    if(!/^[A-Za-z_]\w*$/.test(target)) throw new Error(`"${target}" is not a valid assignment target`);
+    if(!/^[A-Za-z_]\w*$/.test(target) || KW.has(target.toUpperCase()))
+      throw new Error(`"${target}" is not a valid assignment target`);
     eat(':=');
     const expr=orExpr();
     if(peek()===';') i++;
@@ -324,8 +325,18 @@ function parse(tokens){
     eat('OF');
     const branches=[]; let alt=[];
     const STOP=new Set(['ELSE','END_CASE']);
-    // a branch ends at ELSE, END_CASE, or the start of the next label (token followed by ':')
-    const atLabel=()=> tokens[i+1]===':' && tokens[i]!==undefined;
+    // a branch ends at ELSE, END_CASE, or the start of the next label — detected
+    // by speculatively parsing a comma-separated expression list up to a ':'
+    // (safe: ':=' is a single token, so no statement starts expression-then-':')
+    const atLabel=()=>{
+      const save=i;
+      try{
+        orExpr();
+        while(peek()===','){ eat(','); orExpr(); }
+        const ok=peek()===':';
+        i=save; return ok;
+      }catch(e){ i=save; return false; }
+    };
     const branchBody=()=>{
       const out=[];
       while(i<tokens.length && !STOP.has(up()) && !atLabel()) out.push(stmt());
@@ -374,17 +385,18 @@ function parse(tokens){
     while(peek()==='*'||peek()==='/'){ const op=eat(); l={k:'bin',op,l,r:unary()}; } return l; }
   function unary(){
     if(up()==='NOT'){ eat('NOT'); return {k:'not',e:unary()}; }
-    if(peek()==='-'){ eat('-'); return {k:'bin',op:'-',l:{k:'num',v:0},r:unary()}; }
+    if(peek()==='-'){ eat('-'); return {k:'bin',op:'-',synth:true,l:{k:'num',v:0},r:unary()}; }
     return prim();
   }
   function prim(){
     if(peek()==='('){ eat('('); const e=orExpr(); eat(')'); return e; }
     const tk=eat();
     if(tk===undefined) throw new Error('unexpected end of input');
-    if(/^\d/.test(tk)) return {k:'num',v:parseFloat(tk)};
+    if(/^\d/.test(tk)) return {k:'num',v:parseFloat(tk),raw:tk};
     const U=tk.toUpperCase();
     if(U==='TRUE') return {k:'bool',v:true};
     if(U==='FALSE') return {k:'bool',v:false};
+    if(KW.has(U)) throw new Error(`"${tk}" is a reserved word`);
     if(peek()==='('){
       eat('('); const args=[];
       if(peek()!==')'){ args.push(orExpr()); while(peek()===','){ eat(','); args.push(orExpr()); } }
@@ -447,35 +459,177 @@ function flatten(prog){
   return rungs;
 }
 
-/* build ordered block list from an expression tree */
-function blocks(expr){
+/* ---------- AST -> Structured Text ---------- */
+const PREC={'OR':1,'AND':2,'<':3,'>':3,'<=':3,'>=':3,'=':3,'<>':3,'+':4,'-':4,'*':5,'/':5};
+
+function exprToST(e){
+  switch(e.k){
+    case 'num': return e.raw!==undefined?e.raw:String(e.v);
+    case 'bool': return e.v?'TRUE':'FALSE';
+    case 'var': return e.name;
+    case 'not': return 'NOT '+(e.e.k==='bin'?'('+exprToST(e.e)+')':exprToST(e.e));
+    case 'call': return e.name+'('+e.args.map(exprToST).join(', ')+')';
+    case 'bin':{
+      if(e.synth && e.op==='-' && e.l.k==='num' && e.l.v===0)
+        return '-'+(e.r.k==='bin'?'('+exprToST(e.r)+')':exprToST(e.r));
+      const p=PREC[e.op];
+      const wl=e.l.k==='bin' && PREC[e.l.op]<p;
+      const wr=e.r.k==='bin' && PREC[e.r.op]<=p;
+      return (wl?'(':'')+exprToST(e.l)+(wl?')':'')+' '+e.op+' '+(wr?'(':'')+exprToST(e.r)+(wr?')':'');
+    }
+  }
+  return '?';
+}
+
+/* parse a string as a single expression (piggybacks on the full parser) */
+function parseExprText(src){
+  const prog=parse(lex('__t := ('+src+');'));
+  if(prog.length!==1 || prog[0].k!=='assign') throw new Error('not a single expression');
+  return prog[0].expr;
+}
+
+/* AST statement -> ST text, preserving IF/CASE/FOR/WHILE structure
+   (used to re-emit loop rungs and their bodies) */
+function unparseStmt(s,ind){
+  const I=ind, B=ind+'    ';
+  const body=list=>list.map(x=>unparseStmt(x,B)).join('\n');
+  switch(s.k){
+    case 'assign': return I+s.target+' := '+exprToST(s.expr)+';';
+    case 'if':{
+      let t=I+'IF '+exprToST(s.cond)+' THEN\n'+body(s.then);
+      for(const e of s.elifs) t+='\n'+I+'ELSIF '+exprToST(e.cond)+' THEN\n'+body(e.body);
+      if(s.alt.length) t+='\n'+I+'ELSE\n'+body(s.alt);
+      return t+'\n'+I+'END_IF';
+    }
+    case 'case':{
+      let t=I+'CASE '+exprToST(s.sel)+' OF';
+      for(const b of s.branches)
+        t+='\n'+B+b.labels.map(exprToST).join(', ')+': '+b.body.map(x=>unparseStmt(x,'').replace(/\n/g,' ')).join(' ');
+      if(s.alt.length) t+='\n'+I+'ELSE\n'+body(s.alt);
+      return t+'\n'+I+'END_CASE';
+    }
+    case 'for':
+      return I+'FOR '+s.v+' := '+exprToST(s.from)+' TO '+exprToST(s.to)
+             +(s.by?' BY '+exprToST(s.by):'')+' DO\n'+body(s.body)+'\n'+I+'END_FOR';
+    case 'while':
+      return I+'WHILE '+exprToST(s.cond)+' DO\n'+body(s.body)+'\n'+I+'END_WHILE';
+  }
+  return '';
+}
+
+/* ---------- editable view model ----------
+   Built fresh from the flattened rungs on every run. AST nodes are deep-cloned,
+   so diagram edits mutate the model, regenerate the text, and reparse — the
+   textarea stays the single source of truth. */
+let viewModel=[];
+/* true whenever the textarea holds text the model does NOT reflect (parse
+   error) — diagram edits are ignored until the text parses again, so a stale
+   model can never overwrite newer source text */
+let modelStale=false;
+
+/* one guard level -> one or more contacts. Top-level ANDs split into series
+   contacts (series IS ladder AND); a negated AND stays one NC contact. */
+function normGuards(guards){
   const out=[];
-  function txt(e){
-    switch(e.k){
-      case 'num': return String(e.v);
-      case 'bool': return e.v?'TRUE':'FALSE';
-      case 'var': return e.name;
-      case 'call': return e.name+'(…)';
-      case 'not': return 'NOT '+txt(e.e);
-      case 'bin': return '('+txt(e.l)+' '+e.op+' '+txt(e.r)+')';
-    }
-  }
-  function walk(e){
-    if(e.k==='bin' && OPBLOCK[e.op]){
-      walk(e.l); walk(e.r);
-      out.push({name:OPBLOCK[e.op],ins:[['IN1',txt(e.l)],['IN2',txt(e.r)]]});
-      return;
-    }
-    if(e.k==='call'){
-      e.args.forEach(walk);
-      const names = e.name==='LIMIT'?['MN','IN','MX']:e.args.map((_,n)=>'IN'+(n+1));
-      out.push({name:e.name,ins:e.args.map((a,n)=>[names[n]||('IN'+(n+1)),txt(a)])});
-      return;
-    }
-  }
-  walk(expr);
-  if(!out.length) out.push({name:'MOVE',ins:[['IN',txt(expr)]]});
+  const push=(cond,neg)=>{
+    while(cond.k==='not'){ neg=!neg; cond=cond.e; }
+    if(!neg && cond.k==='bin' && cond.op==='AND'){ push(cond.l,false); push(cond.r,false); return; }
+    out.push({cond,neg});
+  };
+  guards.forEach(g=>push(structuredClone(g.cond),g.neg));
   return out;
+}
+function buildModel(flatRungs){
+  return flatRungs.map(r=>{
+    if(r.kind==='loop')
+      return {kind:'loop', loop:structuredClone(r.loop), contacts:normGuards(r.guards), targets:r.targets};
+    return {kind:'assign', target:r.target, expr:structuredClone(r.expr), contacts:normGuards(r.guards)};
+  });
+}
+
+/* ordered block list from a model rung's expression tree, with live node
+   references so pin edits replace the right subtree */
+function blocks(r){
+  const out=[];
+  function walk(node){
+    if(node.k==='bin' && OPBLOCK[node.op]){
+      walk(node.l); walk(node.r);
+      out.push({kind:'bin', node, name:OPBLOCK[node.op], ins:[
+        {pin:'IN1', get:()=>node.l, set:v=>{node.l=v; delete node.synth;}},
+        {pin:'IN2', get:()=>node.r, set:v=>{node.r=v; delete node.synth;}}
+      ]});
+      return;
+    }
+    if(node.k==='call'){
+      node.args.forEach(walk);
+      const names=node.name==='LIMIT'?['MN','IN','MX']:null;
+      out.push({kind:'call', node, name:node.name,
+        ins:node.args.map((a,i)=>({pin:(names&&names[i])||('IN'+(i+1)),
+          get:()=>node.args[i], set:v=>{node.args[i]=v;}}))});
+      return;
+    }
+  }
+  walk(r.expr);
+  if(!out.length)
+    out.push({kind:'move', node:null, name:'MOVE',
+      ins:[{pin:'IN', get:()=>r.expr, set:v=>{r.expr=v;}}]});
+  return out;
+}
+
+/* contact -> ST condition text; parenthesize when needed for NOT / AND joins */
+function contactText(c,inAnd){
+  const t=exprToST(c.cond);
+  if(c.neg) return 'NOT '+(c.cond.k==='bin'?'('+t+')':t);
+  if(inAnd && c.cond.k==='bin' && c.cond.op==='OR') return '('+t+')';
+  return t;
+}
+function wrapGuards(contacts,inner){
+  if(!contacts.length) return inner;
+  const cond=contacts.map(c=>contactText(c,contacts.length>1)).join(' AND ');
+  return 'IF '+cond+' THEN\n'+inner.split('\n').map(l=>l?'    '+l:l).join('\n')+'\nEND_IF';
+}
+
+/* model -> full ST program. Complementary single-contact rungs writing the
+   same tag collapse back into one IF/ELSE. */
+function modelToST(model){
+  const parts=[], used=new Set();
+  model.forEach((r,i)=>{
+    if(used.has(i)) return;
+    if(r.kind==='loop'){ parts.push(wrapGuards(r.contacts, unparseStmt(r.loop,''))); return; }
+    const eTxt=exprToST(r.expr);
+    if(!r.contacts.length){ parts.push(r.target+' := '+eTxt+';'); return; }
+    // only the immediately following rung can be the ELSE partner — flatten
+    // always emits an IF/ELSE adjacently, and collapsing across intervening
+    // rungs would silently reorder the program
+    if(r.contacts.length===1 && i+1<model.length){
+      const j=i+1, s=model[j];
+      if(!used.has(j) && s.kind==='assign' && s.target===r.target && s.contacts.length===1
+         && exprToST(s.contacts[0].cond)===exprToST(r.contacts[0].cond)
+         && s.contacts[0].neg!==r.contacts[0].neg){
+        used.add(j);
+        parts.push('IF '+contactText(r.contacts[0],false)+' THEN\n    '
+          +r.target+' := '+eTxt+';\nELSE\n    '
+          +s.target+' := '+exprToST(s.expr)+';\nEND_IF');
+        return;
+      }
+    }
+    parts.push(wrapGuards(r.contacts, r.target+' := '+eTxt+';'));
+  });
+  return parts.join('\n\n');
+}
+
+/* the classic ladder->text mistake, surfaced live: a tag written only by one
+   gated rung holds its stale value when the contact opens */
+function staleWarnings(model){
+  const w=[];
+  model.forEach((r,i)=>{
+    if(r.kind!=='assign'||!r.contacts.length) return;
+    const others=model.some((s,j)=>j!==i&&s.kind==='assign'&&s.target===r.target);
+    if(!others) w.push('Rung '+(i+1)+' writes <b>'+esc(r.target)+'</b> only while its contact passes power. '
+      +'When the contact opens, nothing writes the tag, so it holds its last value. '
+      +'If the output should drop out, add the complementary rung (or an ELSE in the text).');
+  });
+  return w;
 }
 
 /* ---------- variable discovery ---------- */
@@ -588,30 +742,6 @@ function evaluate(prog,env){
   })(prog);
   return {env,trace};
 }
-function guardState(guards,env){
-  return guards.map(g=>{ const base=truthy(evalExpr(g.cond,env,false)); return g.neg?!base:base; });
-}
-function exprText(e){
-  if(!e) return '';
-  switch(e.k){
-    case 'num': return String(e.v);
-    case 'bool': return e.v?'TRUE':'FALSE';
-    case 'var': return e.name;
-    case 'not': return 'NOT '+exprText(e.e);
-    case 'call': return e.name+'()';
-    case 'bin': return exprText(e.l)+' '+e.op+' '+exprText(e.r);
-  }
-  return '?';
-}
-function guardLabel(g){
-  if(g.cond.k==='var') return g.cond.name;
-  if(g.cond.k==='not'&&g.cond.e.k==='var') return g.cond.e.name;
-  return exprText(g.cond);
-}
-function guardNeg(g){
-  const inner = g.cond.k==='not';
-  return g.neg !== inner;
-}
 
 /* ---------- rendering ---------- */
 const NO=`<svg class="cglyph" viewBox="0 0 30 26"><line x1="0" y1="13" x2="10" y2="13" stroke="CUR" stroke-width="2"/><line x1="10" y1="4" x2="10" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="4" x2="20" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="13" x2="30" y2="13" stroke="CUR" stroke-width="2"/></svg>`;
@@ -632,21 +762,30 @@ function cRung(letter, contact, block, note){
   </div>`;
 }
 
-function render(rungs,env){
+function render(model,env){
   const c=document.getElementById('canvas');
-  if(!rungs.length){ c.innerHTML='<div class="rnote">no assignments found</div>'; return; }
-  c.innerHTML = rungs.map((r,n)=>{
+  if(!model.length){
+    c.innerHTML='<div class="lad"><div class="rnote">no assignments found — type on the left or press + rung</div></div>';
+    return;
+  }
+  const inner = model.map((r,n)=>{
+    const head_=`<div class="rhead">
+      <span class="drag" draggable="true" data-drag="rung" title="drag to reorder">⋮⋮</span>
+      <div class="rnote"><b>Rung ${n+1}</b> — %DESC%</div>
+      <span class="sp"></span>
+      <button class="cx" data-act="delrung" title="delete rung">×</button>
+    </div>`;
     if(r.kind==='loop'){
       const s=r.loop, isFor=s.k==='for';
       const head = isFor
-        ? `FOR ${esc(s.v)} := ${esc(exprText(s.from))} TO ${esc(exprText(s.to))}${s.by?' BY '+esc(exprText(s.by)):''}`
-        : `WHILE ${esc(exprText(s.cond))}`;
+        ? `FOR ${esc(s.v)} := ${esc(exprToST(s.from))} TO ${esc(exprToST(s.to))}${s.by?' BY '+esc(exprToST(s.by)):''}`
+        : `WHILE ${esc(exprToST(s.cond))}`;
 
       // count iterations + estimate timing when the bounds are literals
       let iters=null;
       if(isFor){
-        const a=Number(exprText(s.from)), b=Number(exprText(s.to)),
-              st=s.by?Number(exprText(s.by)):1;
+        const num=x=>x&&x.k==='num'?x.v:NaN;
+        const a=num(s.from), b=num(s.to), st=s.by?num(s.by):1;
         if(!isNaN(a)&&!isNaN(b)&&!isNaN(st)&&st!==0) iters=Math.floor((b-a)/st)+1;
       }
       const ms = iters!==null ? iters*100 : null;
@@ -662,56 +801,68 @@ function render(rungs,env){
 
       // the three-rung counter pattern (FOR only)
       const idx=esc(s.v), body=r.targets.map(esc).join(', ')||'…';
-      const st = s.by?exprText(s.by):'1';
+      const st = s.by?exprToST(s.by):'1';
       const patt = isFor ? `
         <div class="cpat">
-          ${cRung('A', `[ ${idx} &lt; ${esc(exprText(s.to))} ]`,
+          ${cRung('A', `[ ${idx} &lt; ${esc(exprToST(s.to))} ]`,
                   `ADD ${idx} , ${esc(st)} &rarr; ${idx}`, 'advance the counter')}
-          ${cRung('B', `[ ${idx} &lt; ${esc(exprText(s.to))} ]`,
+          ${cRung('B', `[ ${idx} &lt; ${esc(exprToST(s.to))} ]`,
                   `one iteration &rarr; ${body}`, 'do one pass of the loop body')}
-          ${cRung('C', `[ ${idx} &ge; ${esc(exprText(s.to))} ]`,
-                  `finish &nbsp;·&nbsp; MOVE ${esc(exprText(s.from))} &rarr; ${idx}`, 'done — reset for next time')}
+          ${cRung('C', `[ ${idx} &ge; ${esc(exprToST(s.to))} ]`,
+                  `finish &nbsp;·&nbsp; MOVE ${esc(exprToST(s.from))} &rarr; ${idx}`, 'done — reset for next time')}
         </div>` : '';
 
-      return `<div class="rung">
-        <div class="rnote"><b>Rung ${n+1}</b> — ${isFor?'rebuilt as a counter across scans':'no bounded ladder form'}</div>
+      return `<div class="rung" data-r="${n}">
+        ${head_.replace('%DESC%', isFor?'rebuilt as a counter across scans':'no bounded ladder form')}
         <div class="noladder">
           <div class="nlhead">${head}</div>
           <div class="nlbody">${banner}</div>
           ${patt}
         </div></div>`;
     }
-    const states=guardState(r.guards,env);
+    const states=r.contacts.map(ct=>{
+      const base=truthy(evalExpr(ct.cond,env,false));
+      return ct.neg?!base:base;
+    });
     const live=states.every(Boolean);
-    const gh = r.guards.map((g,gi)=>{
-      const on=states[gi], col=on?'#5fd38d':'#6c7a85';
-      const glyph=(guardNeg(g)?NC:NO).replace(/CUR/g,col);
-      return `<div class="contact ${on?'on':''}"><div class="ctag">${esc(guardLabel(g))}</div>${glyph}</div>`
+    const gh = r.contacts.map((ct,ci)=>{
+      const on=states[ci], col=on?'#5fd38d':'#6c7a85';
+      const glyph=(ct.neg?NC:NO).replace(/CUR/g,col);
+      return `<div class="contact ${on?'on':''}" draggable="true" data-drag="contact" data-c="${ci}">
+          <button class="cx" data-act="delc" data-c="${ci}" title="delete contact">×</button>
+          <div class="ctag" data-act="ctag" data-c="${ci}" title="click to edit">${esc(exprToST(ct.cond))}</div>
+          <span data-act="toggle" data-c="${ci}" title="toggle [ ] / [/]">${glyph}</span>
+        </div>`
            + `<div class="w ${on?'on':''}"></div>`;
     }).join('');
-    const bs = blocks(r.expr).map(b=>
-      `<div class="blk ${live?'on':''}"><div class="bname">${esc(b.name)}</div>`+
-      b.ins.map(([k,v])=>`<div class="bio"><i>${esc(k)}</i>${esc(v)}</div>`).join('')+
+    r._blocks=blocks(r);
+    const bs = r._blocks.map((b,bi)=>
+      `<div class="blk ${live?'on':''}" data-b="${bi}"><div class="bname"${b.kind==='bin'?` data-act="opname" data-b="${bi}" title="click to change"`:''}>${esc(b.name)}</div>`+
+      b.ins.map((pinDef,ii)=>`<div class="bio"><i>${esc(pinDef.pin)}</i><span class="pinv" data-act="pin" data-b="${bi}" data-i="${ii}" title="${esc(exprToST(pinDef.get()))} — click to edit">${esc(exprToST(pinDef.get()))}</span></div>`).join('')+
       `<div class="bio"><i>OUT</i>→</div></div><div class="w ${live?'on':''}"></div>`
     ).join('');
     const v = env[r.target];
-    const desc = r.guards.length
-      ? `gated by ${r.guards.map(g=>(guardNeg(g)?'NOT ':'')+guardLabel(g)).join(' AND ')}`
+    const desc = r.contacts.length
+      ? `gated by ${esc(r.contacts.map(ct=>contactText(ct,false)).join(' AND '))}`
       : 'unconditional — runs every scan';
-    return `<div class="rung">
-      <div class="rnote"><b>Rung ${n+1}</b> — ${esc(desc)}</div>
+    return `<div class="rung" data-r="${n}">
+      ${head_.replace('%DESC%', desc)}
       <div class="row">
-        <div class="w ${live||r.guards.length===0?'on':''}"></div>
-        ${gh}${bs}
+        <div class="w ${live||r.contacts.length===0?'on':''}"></div>
+        ${gh}
+        <button class="addc" data-act="addc" title="add contact">+[ ]</button>
+        <div class="w ${live?'on':''}"></div>
+        ${bs}
         <div class="w f ${live?'on':''}"></div>
         <div class="coil ${live?'on':''}">
-          <div class="ctag2">${esc(r.target)}</div>
+          <div class="ctag2" data-act="coil" title="click to edit">${esc(r.target)}</div>
           <div class="val">${live&&v!==undefined?fmt(v):'not written'}</div>
         </div>
         <div class="w ${live?'on':''}"></div>
       </div></div>`;
   }).join('');
-  drawReturn(c);
+  c.innerHTML = `<div class="lad" id="lad">${inner}</div>`;
+  drawReturn(document.getElementById('lad'));
 }
 
 /* full return path: exits below the last rung, runs up the left gutter,
@@ -754,7 +905,7 @@ function refreshInputs(inputs,bools,force){
     inputsKey=key;
     inEl.innerHTML = inputs.length? inputs.map(v=>bools.has(v)
         ? `<label class="tog"><input type="checkbox" data-v="${esc(v)}" ${values[v]?'checked':''}>${esc(v)}</label><span class="out" data-o="${esc(v)}">${values[v]?'TRUE':'FALSE'}</span>`
-        : `<label for="i_${esc(v)}">${esc(v)}</label><input type="number" step="any" id="i_${esc(v)}" data-v="${esc(v)}" value="${values[v]}">`
+        : `<label for="i_${esc(v)}">${esc(v)}</label><input type="number" step="any" id="i_${esc(v)}" data-v="${esc(v)}" value="${esc(values[v])}">`
       ).join('') : '<span class="out" style="color:var(--dim)">none</span>';
   } else {
     inputs.forEach(v=>{
@@ -769,10 +920,13 @@ function run(forceInputs){
   errEl.innerHTML='';
   let prog;
   try{ prog=parse(lex(srcEl.value)); }
-  catch(e){ errEl.innerHTML=`<div class="err">Parse error: ${esc(e.message)}</div>`; return; }
+  catch(e){ errEl.innerHTML=`<div class="err">Parse error: ${esc(e.message)}</div>`; modelStale=true; return; }
+  modelStale=false;
 
   const {inputs,outputs,bools}=scan(prog);
-  inputs.forEach(v=>{ if(values[v]===undefined) values[v]= bools.has(v)?false:0; });
+  // hasOwnProperty: a variable named e.g. "constructor" must not resolve to an
+  // inherited Object.prototype member
+  inputs.forEach(v=>{ if(!Object.prototype.hasOwnProperty.call(values,v)) values[v]= bools.has(v)?false:0; });
 
   refreshInputs(inputs,bools,forceInputs===true);
 
@@ -783,10 +937,20 @@ function run(forceInputs){
   outEl.innerHTML = outputs.map(v=>
     `<label>${esc(v)}</label><span class="out">${env[v]!==undefined?fmt(env[v]):'—'}</span>`).join('');
 
-  const flat=flatten(prog);
-  render(flat,env);
+  viewModel=buildModel(flatten(prog));
+  render(viewModel,env);
+  const w=staleWarnings(viewModel);
+  document.getElementById('cwarn').innerHTML = w.length
+    ? '<div class="warnbox">'+w.map(x=>'&middot; '+x).join('<br>')+'</div>' : '';
   document.getElementById('scanmsg').textContent =
-    `${flat.length} rungs · re-evaluated every scan (100 ms = 10×/sec)`;
+    `${viewModel.length} rungs · re-evaluated every scan (100 ms = 10×/sec)`;
+}
+
+/* diagram edited -> regenerate the text and run the full cycle */
+function regen(){
+  if(modelStale) return;
+  srcEl.value=modelToST(viewModel);
+  run();
 }
 
 srcEl.addEventListener('input',()=>run());
@@ -804,159 +968,165 @@ srcEl.value=EX.ex1;
 values={rLC_SP:60,rLevel_PV:50,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false};
 run();
 
-/* ================= LADDER -> TEXT ================= */
-const ARITY={MOVE:1,ADD:2,SUB:2,MUL:2,DIV:2,LIMIT:3,MIN:2,MAX:2,ABS:1};
-const PREV='@prev';
-let rungs=[];
+/* ================= DIAGRAM EDITING ================= */
+const canvasEl=document.getElementById('canvas');
 
-function seedRungs(){
-  rungs=[
-    {contacts:[],blocks:[{op:'SUB',ins:['rLC_SP','rLevel_PV']}],target:'rLC_Error'},
-    {contacts:[{tag:'bLC_ManMode',nc:false}],blocks:[{op:'MOVE',ins:['rLC_ManOP']}],target:'rValve_OP'},
-    {contacts:[{tag:'bLC_ManMode',nc:true}],
-     blocks:[{op:'MUL',ins:['rLC_Kp','rLC_Error']},{op:'ADD',ins:['rLC_Bias',PREV]}],
-     target:'rValve_OP'},
-    {contacts:[],blocks:[{op:'LIMIT',ins:['0.0','rValve_OP','100.0']}],target:'rValve_OP'}
-  ];
-}
-const PIN={LIMIT:['MN','IN','MX'],MOVE:['IN'],ABS:['IN']};
-const pinName=(op,n)=> (PIN[op]&&PIN[op][n]) || ('IN'+(n+1));
-
-function drawBuilder(){
-  const host=document.getElementById('rungedit');
-  host.innerHTML = rungs.map(function(r,i){ return ''+
-    '<div class="re" data-r="'+i+'">'+
-      '<div class="rehead"><span class="n">RUNG '+(i+1)+'</span><span class="sp"></span>'+
-        '<button class="mini" data-act="up"'+(i===0?' disabled':'')+'>up</button>'+
-        '<button class="mini" data-act="down"'+(i===rungs.length-1?' disabled':'')+'>down</button>'+
-        '<button class="mini" data-act="delrung">remove</button></div>'+
-      '<div class="chips">'+
-        r.contacts.map(function(c,ci){ return ''+
-          '<span class="chip"><select data-act="nc" data-c="'+ci+'">'+
-            '<option value="0"'+(c.nc?'':' selected')+'>[ ]</option>'+
-            '<option value="1"'+(c.nc?' selected':'')+'>[/]</option></select>'+
-          '<input data-act="ctag" data-c="'+ci+'" value="'+esc(c.tag)+'" placeholder="tag">'+
-          '<button class="x" data-act="delc" data-c="'+ci+'">&times;</button></span>'; }).join('')+
-        '<button class="mini" data-act="addc">+ contact</button>'+
-        r.blocks.map(function(b,bi){ return ''+
-          '<span class="chip k"><select data-act="op" data-b="'+bi+'">'+
-            Object.keys(ARITY).map(function(o){return '<option'+(o===b.op?' selected':'')+'>'+o+'</option>';}).join('')+
-          '</select>'+
-          b.ins.map(function(v,ii){ return '<input data-act="in" data-b="'+bi+'" data-i="'+ii+'" value="'+
-            esc(v)+'" placeholder="'+pinName(b.op,ii)+'" title="'+pinName(b.op,ii)+'">'; }).join('')+
-          '<button class="x" data-act="delb" data-b="'+bi+'">&times;</button></span>'; }).join('')+
-        '<button class="mini" data-act="addb">+ block</button>'+
-      '</div>'+
-      '<div class="tgt">writes &rarr; <input data-act="target" value="'+esc(r.target)+'" placeholder="output tag"></div>'+
-    '</div>'; }).join('') || '<div class="rnote">no rungs yet</div>';
-  generate();
+function inlineEdit(el,initial,apply){
+  const host=el.closest('[draggable]'); if(host) host.draggable=false;
+  // un-clip the host (.pinv has max-width + overflow:hidden) while editing
+  el.style.maxWidth='none'; el.style.overflow='visible';
+  const inp=document.createElement('input');
+  inp.className='inline'; inp.value=initial; inp.spellcheck=false;
+  inp.style.width=Math.max(60,Math.min(260,initial.length*7+30))+'px';
+  el.replaceChildren(inp);
+  inp.focus(); inp.select();
+  let done=false;
+  // cancel path restores the label in place — no canvas rebuild, so the click
+  // that blurred the editor still lands on its target
+  const restore=()=>{
+    done=true;
+    el.style.maxWidth=''; el.style.overflow='';
+    el.textContent=initial;
+    if(host) host.draggable=true;
+  };
+  const commit=()=>{
+    if(done) return;
+    const v=inp.value.trim();
+    if(v===''||v===initial){ restore(); return; }
+    try{ apply(v); done=true; }
+    catch(err){ inp.classList.add('bad'); inp.title=err.message; inp.focus(); }
+  };
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); commit(); }
+    else if(e.key==='Escape'){ restore(); }
+    else inp.classList.remove('bad');
+  });
+  inp.addEventListener('blur',()=>commit());
 }
 
-function chainExpr(blocks){
-  let prev=null, danglingPrev=false;
-  for(const b of blocks){
-    const a=b.ins.map(function(v){
-      if(v===PREV && prev===null){ danglingPrev=true; return '0'; }
-      return v===PREV ? prev : (v||'0');
+canvasEl.addEventListener('click',e=>{
+  if(e.target.closest('input,select')) return;
+  const t=e.target.closest('[data-act]');
+  if(!t) return;
+  const rungEl=t.closest('[data-r]');
+  const r=rungEl?viewModel[+rungEl.dataset.r]:null;
+  if(!r) return;
+  const act=t.dataset.act;
+  if(act==='delrung'){ viewModel.splice(+rungEl.dataset.r,1); regen(); }
+  else if(act==='toggle'){ const ct=r.contacts[+t.dataset.c]; ct.neg=!ct.neg; regen(); }
+  else if(act==='delc'){ r.contacts.splice(+t.dataset.c,1); regen(); }
+  else if(act==='addc'){ r.contacts.push({cond:{k:'var',name:'bNew'},neg:false}); regen(); }
+  else if(act==='ctag'){
+    const ct=r.contacts[+t.dataset.c];
+    inlineEdit(t, exprToST(ct.cond), v=>{
+      let x=parseExprText(v), neg=ct.neg;
+      while(x.k==='not'){ neg=!neg; x=x.e; }
+      ct.cond=x; ct.neg=neg; regen();
     });
-    switch(b.op){
-      case 'MOVE': prev=a[0]; break;
-      case 'ADD': prev='('+a[0]+' + '+a[1]+')'; break;
-      case 'SUB': prev='('+a[0]+' - '+a[1]+')'; break;
-      case 'MUL': prev='('+a[0]+' * '+a[1]+')'; break;
-      case 'DIV': prev='('+a[0]+' / '+a[1]+')'; break;
-      default: prev=b.op+'('+a.join(', ')+')';
+  }
+  else if(act==='pin'){
+    const pinDef=r._blocks[+t.dataset.b].ins[+t.dataset.i];
+    inlineEdit(t, exprToST(pinDef.get()), v=>{ pinDef.set(parseExprText(v)); regen(); });
+  }
+  else if(act==='coil'){
+    inlineEdit(t, r.target, v=>{
+      if(!/^[A-Za-z_]\w*$/.test(v) || KW.has(v.toUpperCase()) || FUNCS.has(v.toUpperCase()))
+        throw new Error('output tag must be a plain identifier (not a reserved word)');
+      r.target=v; regen();
+    });
+  }
+  else if(act==='opname'){
+    const b=r._blocks[+t.dataset.b];
+    if(b.kind!=='bin') return;
+    const sel=document.createElement('select'); sel.className='opsel';
+    ['ADD','SUB','MUL','DIV'].forEach(o=>{
+      const op=document.createElement('option'); op.textContent=o; op.selected=o===b.name; sel.appendChild(op);
+    });
+    t.replaceChildren(sel); sel.focus();
+    const INV={ADD:'+',SUB:'-',MUL:'*',DIV:'/'};
+    let applied=false;
+    sel.addEventListener('change',()=>{ applied=true; b.node.op=INV[sel.value]; delete b.node.synth; regen(); });
+    sel.addEventListener('blur',()=>{ if(!applied) t.textContent=b.name; });
+  }
+});
+
+/* drag & drop — rungs reorder across the ladder, contacts reorder within their rung */
+let dragInfo=null;
+const clearDragHighlights=()=>canvasEl.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));
+canvasEl.addEventListener('dragstart',e=>{
+  const h=e.target.closest('[data-drag]');
+  if(!h){ e.preventDefault(); return; }
+  const rungEl=h.closest('[data-r]');
+  dragInfo = h.dataset.drag==='rung'
+    ? {t:'rung', r:+rungEl.dataset.r}
+    : {t:'contact', r:+rungEl.dataset.r, c:+h.dataset.c};
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain','');
+  if(h.dataset.drag==='rung') e.dataTransfer.setDragImage(rungEl,20,20);
+});
+canvasEl.addEventListener('dragover',e=>{
+  if(!dragInfo) return;
+  const over = dragInfo.t==='rung'
+    ? e.target.closest('.rung')
+    : e.target.closest('.contact,.addc');
+  if(!over) return;
+  if(dragInfo.t==='contact'){
+    const rungEl=over.closest('[data-r]');
+    if(!rungEl || +rungEl.dataset.r!==dragInfo.r) return;
+  }
+  e.preventDefault();
+  clearDragHighlights();
+  over.classList.add('dragover');
+});
+canvasEl.addEventListener('drop',e=>{
+  if(!dragInfo) return;
+  e.preventDefault();
+  if(dragInfo.t==='rung'){
+    const over=e.target.closest('.rung');
+    if(over){
+      const from=dragInfo.r, to=+over.dataset.r;
+      if(from!==to){ viewModel.splice(to,0,viewModel.splice(from,1)[0]); regen(); }
+    }
+  } else {
+    const over=e.target.closest('.contact,.addc');
+    const rungEl=over&&over.closest('[data-r]');
+    if(rungEl && +rungEl.dataset.r===dragInfo.r){
+      const r=viewModel[dragInfo.r];
+      const to=over.classList.contains('addc')?r.contacts.length-1:+over.dataset.c;
+      if(to!==dragInfo.c){ r.contacts.splice(to,0,r.contacts.splice(dragInfo.c,1)[0]); regen(); }
     }
   }
-  return {expr: prev===null?'0':prev, dangling:danglingPrev};
-}
-function chainText(blocks){ return chainExpr(blocks).expr; }
-const condOf=function(r){ return r.contacts.length
-  ? r.contacts.map(function(c){return (c.nc?'NOT ':'')+(c.tag||'?');}).join(' AND ') : null; };
-
-function generate(){
-  const out=[], warns=[], used=new Set();
-  for(let i=0;i<rungs.length;i++){
-    if(used.has(i)) continue;
-    const r=rungs[i], cond=condOf(r), ce=chainExpr(r.blocks), expr=ce.expr;
-    if(ce.dangling) warns.push('Rung '+(i+1)+' uses <b>@prev</b> in its first block, but nothing comes before it — treated as 0.');
-    if(!r.target){ warns.push('Rung '+(i+1)+' has no output tag, so nothing is written.'); continue; }
-    if(!cond){ out.push(r.target+' := '+expr+';'); continue; }
-    let pair=-1;
-    if(r.contacts.length===1){
-      for(let j=i+1;j<rungs.length;j++){
-        const s=rungs[j];
-        if(used.has(j)) continue;
-        if(s.target===r.target && s.contacts.length===1 &&
-           s.contacts[0].tag===r.contacts[0].tag && s.contacts[0].nc!==r.contacts[0].nc){ pair=j; break; }
-      }
-    }
-    if(pair>=0){
-      used.add(pair);
-      const s=rungs[pair], tag=r.contacts[0].tag||'?';
-      const A=r.contacts[0].nc? chainText(s.blocks) : expr;
-      const B=r.contacts[0].nc? expr : chainText(s.blocks);
-      out.push('IF '+tag+' THEN\n    '+r.target+' := '+A+';\nELSE\n    '+r.target+' := '+B+';\nEND_IF');
-    } else {
-      out.push('IF '+cond+' THEN\n    '+r.target+' := '+expr+';\nEND_IF');
-      const elsewhere=rungs.some(function(s,j){ return j!==i && s.target===r.target && !condOf(s)
-        && !s.blocks.some(function(b){ return b.ins.indexOf(r.target)>=0; }); });
-      if(!elsewhere) warns.push('Rung '+(i+1)+' writes <b>'+esc(r.target)+'</b> only while its contact passes power. '+
-        'When it goes false nothing writes the tag, so it holds its last value. '+
-        'If the ladder intended the output to drop out, the text needs an ELSE.');
-    }
-  }
-  const code=out.join('\n\n')||'(* add a rung to generate code *)';
-  document.getElementById('gen').innerHTML = esc(code)
-    .replace(/\b(IF|THEN|ELSE|END_IF|NOT|AND|OR|LIMIT|MIN|MAX|ABS)\b/g,'<span class="kw">$1</span>')
-    .replace(/(\(\*[\s\S]*?\*\))/g,'<span class="cm">$1</span>');
-  document.getElementById('genwarn').innerHTML = warns.length
-    ? '<div class="warnbox">'+warns.map(function(w){return '&middot; '+w;}).join('<br>')+'</div>' : '';
-}
-
-document.getElementById('rungedit').addEventListener('input',function(e){
-  const t=e.target, re=t.closest('.re'); if(!re) return;
-  const r=rungs[+re.dataset.r], a=t.dataset.act;
-  if(a==='ctag') r.contacts[+t.dataset.c].tag=t.value.trim();
-  else if(a==='nc') r.contacts[+t.dataset.c].nc = t.value==='1';
-  else if(a==='in') r.blocks[+t.dataset.b].ins[+t.dataset.i]=t.value.trim();
-  else if(a==='target') r.target=t.value.trim();
-  else if(a==='op'){ const b=r.blocks[+t.dataset.b]; b.op=t.value;
-    const n=ARITY[b.op]; b.ins=Array.from({length:n},function(_,k){return b.ins[k]||'';});
-    drawBuilder(); return; }
-  generate();
+  dragInfo=null;
+  clearDragHighlights();
 });
-document.getElementById('rungedit').addEventListener('change',function(e){
-  if(e.target.tagName==='SELECT') e.target.dispatchEvent(new Event('input',{bubbles:true}));
-});
-document.getElementById('rungedit').addEventListener('click',function(e){
-  const t=e.target.closest('button'); if(!t) return;
-  const re=t.closest('.re'); if(!re) return;
-  const i=+re.dataset.r, r=rungs[i], a=t.dataset.act;
-  if(a==='addc') r.contacts.push({tag:'',nc:false});
-  else if(a==='delc') r.contacts.splice(+t.dataset.c,1);
-  else if(a==='addb') r.blocks.push({op:'MOVE',ins:['']});
-  else if(a==='delb') r.blocks.splice(+t.dataset.b,1);
-  else if(a==='delrung') rungs.splice(i,1);
-  else if(a==='up'&&i>0) rungs.splice(i-1,0,rungs.splice(i,1)[0]);
-  else if(a==='down'&&i<rungs.length-1) rungs.splice(i+1,0,rungs.splice(i,1)[0]);
-  else return;
-  drawBuilder();
-});
-document.getElementById('addrung').addEventListener('click',function(){
-  rungs.push({contacts:[],blocks:[{op:'MOVE',ins:['']}],target:''}); drawBuilder(); });
-document.getElementById('seed').addEventListener('click',function(){ seedRungs(); drawBuilder(); });
-document.getElementById('clearall').addEventListener('click',function(){ rungs=[]; drawBuilder(); });
+canvasEl.addEventListener('dragend',()=>{ dragInfo=null; clearDragHighlights(); });
 
-document.querySelectorAll('.mode').forEach(function(btn){ btn.addEventListener('click',function(){
-  document.querySelectorAll('.mode').forEach(function(b){ b.classList.toggle('on',b===btn); });
-  const build = btn.dataset.mode==='build';
-  document.getElementById('readwrap').hidden = build;
-  document.getElementById('buildwrap').hidden = !build;
-}); });
+document.getElementById('addrung').addEventListener('click',()=>{
+  viewModel.push({kind:'assign',target:'rNew',expr:{k:'num',v:0,raw:'0.0'},contacts:[]});
+  regen();
+});
 
-seedRungs();
-drawBuilder();
+/* ================= .ST FILE OPEN / EXPORT ================= */
+const stfile=document.getElementById('stfile');
+function loadFile(f){ f.text().then(t=>{ srcEl.value=t; run(true); }); }
+document.getElementById('openst').addEventListener('click',()=>stfile.click());
+stfile.addEventListener('change',()=>{ if(stfile.files[0]) loadFile(stfile.files[0]); stfile.value=''; });
+document.getElementById('exportst').addEventListener('click',()=>{
+  const blob=new Blob([srcEl.value],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='program.st'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+});
+srcEl.addEventListener('dragover',e=>{
+  if([...e.dataTransfer.types].includes('Files')) e.preventDefault();
+});
+srcEl.addEventListener('drop',e=>{
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f){ e.preventDefault(); loadFile(f); }
+});
+/* a file released anywhere else must not navigate the page away */
+document.addEventListener('dragover',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+document.addEventListener('drop',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
 
 </script>
 </body>
