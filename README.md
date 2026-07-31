@@ -56,6 +56,17 @@ back into a single `IF / ELSE`. A tag written by only one gated rung
 raises a warning — the output would hold a stale value when the contact
 opens, the classic mistake when converting ladder to text by hand.
 
+**A plant to control.** The **Plant** view is a P&ID canvas wired to the
+same tags the logic uses: drag out tanks, control valves, pumps, level
+transmitters, supply and drain; bind them to tags; and the process runs
+on the same scan — transmitters publish levels before each scan, the
+logic computes, actuators move flow, tanks integrate it. Load the
+**level control plant** and watch the controller settle the tank at its
+setpoint; then load the **sign error** logic against the same plant and
+watch positive feedback run the tank into visible **OVERFLOW**. Pipes
+animate where liquid actually flows. The plant is saved in your browser;
+the `.st` file carries only the logic.
+
 **Files.** Open a `.st` file (or drop one onto the editor) and export
 your program back to `.st` when you're done. Plain text either way —
 nothing leaves the browser.
