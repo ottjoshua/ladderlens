@@ -9,6 +9,7 @@ import {esc,truthy,pnum} from './engine.js';
 export function createPlant(hooksIn={}){
 const hooks=Object.assign({env:()=>({}), onChange(){}, onLoadPair(){}},hooksIn);
 const env=hooks.env;
+const plant=hooks.project.data;   // devices live in the project model
 
 /* ================= PLANT — P&ID canvas + process simulation =================
    Devices live on an SVG canvas and share the logic's tag environment:
@@ -16,8 +17,6 @@ const env=hooks.env;
    pumps READ their tags after the scan and move flow; tanks integrate it.
    Flow units: %/s of a tank at 100% open/speed. The plant is saved in
    localStorage; the .st file carries only the logic. */
-const PSTORE='ladderlens.plant.v1';
-let plant={devices:[]};
 let pSel=null, pDrag=null;
 
 const pById=id=>plant.devices.find(d=>d.id===id);
@@ -89,31 +88,9 @@ function plantReset(){
     else if(d.type==='valve'||d.type==='pump') d._flow=0;   // stop pipe animation
   }
 }
-function plantSave(){ try{ localStorage.setItem(PSTORE,JSON.stringify(plant)); }catch(e){} }
-function plantLoad(){
-  // localStorage persists across reloads — malformed entries must never brick boot
-  try{
-    const s=localStorage.getItem(PSTORE);
-    if(s){
-      const p=JSON.parse(s);
-      if(p&&Array.isArray(p.devices)){
-        const TYPES=['tank','valve','pump','lt','supply','drain'];
-        const seen=new Set();
-        p.devices=p.devices.filter(d=>{
-          if(!d||typeof d!=='object'||typeof d.id!=='string'||!TYPES.includes(d.type)||seen.has(d.id)) return false;
-          seen.add(d.id);
-          d.name=typeof d.name==='string'?d.name:d.id;
-          d.x=isFinite(d.x)?d.x:100; d.y=isFinite(d.y)?d.y:100;
-          for(const f of ['level','level0','maxFlow','posConst']) if(d[f]!==undefined&&!isFinite(d[f])) d[f]=0;
-          return true;
-        });
-        plant=p;
-        return true;
-      }
-    }
-  }catch(e){}
-  return false;
-}
+/* persistence + validation live in the project model */
+function plantSave(){ hooks.project.save(); }
+function plantLoad(){ return hooks.project.load(); }
 
 /* ---- geometry ---- */
 function outPort(d){ return d.type==='tank' ? {x:d.x,y:d.y+45} : {x:d.x+14,y:d.y}; }
@@ -327,19 +304,19 @@ document.querySelectorAll('[data-padd]').forEach(b=>b.addEventListener('click',(
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();
 }));
 document.getElementById('pclear').addEventListener('click',()=>{
-  plant={devices:[]}; pSel=null;
+  plant.devices=[]; pSel=null;
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();
 });
 
 function plantExample(){
-  plant={devices:[
+  plant.devices=[
     {id:'SUP-1',type:'supply',name:'SUPPLY',x:70,y:120},
     {id:'LV-101',type:'valve',name:'LV-101',x:190,y:120,from:'SUP-1',to:'TK-101',maxFlow:6,posTag:'rValve_OP'},
     {id:'TK-101',type:'tank',name:'TK-101',x:350,y:230,level:40,level0:40},
     {id:'LT-101',type:'lt',name:'LT-101',x:470,y:150,tank:'TK-101',pvTag:'rLevel_PV'},
     {id:'LV-102',type:'valve',name:'LV-102',x:350,y:360,from:'TK-101',to:'DR-1',maxFlow:6,posConst:45},
     {id:'DR-1',type:'drain',name:'DRAIN',x:500,y:360},
-  ]};
+  ];
 }
 document.getElementById('pex1').addEventListener('click',()=>{
   plantExample(); pSel=null;

@@ -3,6 +3,7 @@
 
 import {createLogicPanel, SCAN_MS} from './ladder.js';
 import {createPlant} from './plant.js';
+import {createProject} from './project.js';
 import {EX, EX_DEFAULTS} from './examples.js';
 
 /* ---------- the workspace shell ----------
@@ -11,7 +12,9 @@ import {EX, EX_DEFAULTS} from './examples.js';
    owns its program and scan state; the plant owns its devices. */
 
 let panel=null;
+const project=createProject();
 const plant=createPlant({
+  project,
   env:()=>panel?panel.env():{},
   onChange:()=>{ if(panel) panel.run(true); },
   onLoadPair:()=>{                 // "level control plant" pairs with the ex1 logic
@@ -52,6 +55,31 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) panel.cl
 document.addEventListener('dragover',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
 document.addEventListener('drop',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
 
+/* ---- project files: the whole workspace travels as one .llp ---- */
+const projfile=document.getElementById('projfile');
+document.getElementById('openproj').addEventListener('click',()=>projfile.click());
+projfile.addEventListener('change',()=>{
+  const f=projfile.files[0]; projfile.value='';
+  if(!f) return;
+  f.text().then(t=>{
+    let r;
+    try{ r=project.fromLLP(t); }
+    catch(e){ alert(e.message); return; }
+    plant.rebuild(); plant.inspector();
+    if(r.program!=null) panel.coldStart(r.program, r.inputs);
+    else panel.run(true);
+    plant.paint();
+  });
+});
+document.getElementById('exportproj').addEventListener('click',()=>{
+  const text=project.toLLP(panel.source(), panel.values());
+  const name=(project.data.meta.name||'project').replace(/[^\w-]+/g,'-')+'.llp';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'application/json;charset=utf-8'}));
+  a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+});
+
 /* ---- view switch ---- */
 document.querySelectorAll('.mode').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on',x===btn));
@@ -62,6 +90,6 @@ document.querySelectorAll('.mode').forEach(btn=>btn.addEventListener('click',()=
 }));
 
 /* ---- boot ---- */
-if(!plant.load()) plant.example();
+if(!project.load()) plant.example();
 plant.rebuild(); plant.inspector();
 panel.coldStart(EX.ex1, EX_DEFAULTS.ex1);

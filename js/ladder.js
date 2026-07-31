@@ -714,5 +714,7 @@ srcEl.addEventListener('drop',e=>{
 return {run, repaint, scanTick, step, toggleRun, reset, coldStart, status,
   isRunning:()=>plcRunning,
   env:()=>scanEnv,
+  source:()=>srcEl.value,
+  values:()=>Object.assign({},values),
   clockReset:()=>{ lastTickAt=null; }};
 }

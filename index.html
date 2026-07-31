@@ -175,6 +175,7 @@ select.opsel{background:#151a1e;border:1px solid var(--rail);color:var(--blk-txt
 .canvasbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 /* view switch */
 .modes{display:flex;gap:0;border:1px solid #333e47;border-radius:5px;overflow:hidden}
+.proj{display:flex;gap:6px;align-items:center}
 .mode{background:transparent;border:0;border-radius:0;padding:6px 13px;color:var(--dim);font-size:11px}
 .mode+.mode{border-left:1px solid #333e47}
 .mode.on{background:var(--rail);color:#14171a;font-weight:600}
@@ -209,6 +210,11 @@ header .scan{margin-top:0;flex:0 0 auto}
   <div class="modes">
     <button class="mode on" data-view="logic">Logic</button>
     <button class="mode" data-view="plant">Plant</button>
+  </div>
+  <div class="proj">
+    <button id="openproj" class="fbtn" title="open a .llp project file — plant devices and logic together">open project</button>
+    <button id="exportproj" class="fbtn" title="download the whole workspace (plant + logic) as a .llp project file">export project</button>
+    <input type="file" id="projfile" accept=".llp,.json" hidden>
   </div>
   <div class="scan">
     <span class="dot" id="dot"></span><span id="scanmsg">every rung re-evaluates each scan</span>
