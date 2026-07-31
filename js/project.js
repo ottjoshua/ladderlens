@@ -13,7 +13,7 @@ export const PROJECT_VERSION=1;
 const STORE='ladderlens.project.v1';
 const OLD_PLANT_STORE='ladderlens.plant.v1';   // pre-project releases stored the plant alone
 
-const TYPES=['tank','valve','pump','lt','supply','drain','plc'];
+const TYPES=['tank','valve','pump','lt','ft','ls','supply','drain','plc'];
 
 /* localStorage and .llp files both arrive from outside the program —
    malformed entries must never brick boot or import. Ids are restricted to
@@ -41,12 +41,17 @@ function validDevices(list){
     d.name=typeof d.name==='string'?d.name:d.id;
     d.x=Number(d.x); if(!Number.isFinite(d.x)) d.x=100;
     d.y=Number(d.y); if(!Number.isFinite(d.y)) d.y=100;
-    for(const f of ['level','level0','maxFlow','posConst'])
+    for(const f of ['level','level0','maxFlow','posConst','sp'])
       if(d[f]!==undefined){ d[f]=Number(d[f]); if(!Number.isFinite(d[f])) d[f]=0; }
+    for(const f of ['from','to','tank','dev','posTag','runTag','speedTag','pvTag','flowTag','outTag'])
+      if(d[f]!==undefined&&typeof d[f]!=='string') delete d[f];
     if(d.type==='plc'){
       d.program=typeof d.program==='string'?d.program:'';
       d.inputs=sanitizeInputs(d.inputs);
+      if(d.vendor!==undefined&&typeof d.vendor!=='string') delete d.vendor;
+      if(d.model!==undefined&&typeof d.model!=='string') delete d.model;
     }
+    if(d.type==='ls') d.mode = d.mode==='low' ? 'low' : 'high';
     return true;
   });
 }

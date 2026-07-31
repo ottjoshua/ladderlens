@@ -2,6 +2,7 @@
    PolyForm Noncommercial 1.0.0 — commercial use requires a separate license. */
 
 import {esc,truthy,pnum} from './engine.js';
+import {vendorsFor,modelsFor} from './catalog.js';
 
 /* The plant simulation + P&ID canvas. It reads and writes PLC tags only
    through hooks.env() — the environment of the controller it is wired to —
@@ -24,7 +25,11 @@ const clamp01=v=>Math.max(0,Math.min(100,v));
 
 function plantSensorTagSet(){
   const s=new Set();
-  for(const d of plant.devices) if(d.type==='lt'&&d.pvTag) s.add(d.pvTag);
+  for(const d of plant.devices){
+    if(d.type==='lt'&&d.pvTag) s.add(d.pvTag);
+    if(d.type==='ft'&&d.flowTag) s.add(d.flowTag);
+    if(d.type==='ls'&&d.outTag) s.add(d.outTag);
+  }
   return s;
 }
 function plantActuatorTags(){
@@ -36,8 +41,17 @@ function plantActuatorTags(){
   return m;
 }
 function plantSensors(){
-  for(const d of plant.devices)
+  for(const d of plant.devices){
     if(d.type==='lt'&&d.pvTag){ const t=pById(d.tank); env()[d.pvTag]= t&&t.type==='tank' ? t.level||0 : 0; }
+    // FT publishes the flow its attached valve/pump moved last tick (%/s) —
+    // one tick behind the actuator, like a real field instrument
+    if(d.type==='ft'&&d.flowTag){ const t=pById(d.dev); env()[d.flowTag]= t&&t._flow!==undefined ? t._flow : 0; }
+    // LS trips when its tank crosses the setpoint: high => TRUE at/above, low => TRUE at/below
+    if(d.type==='ls'&&d.outTag){
+      const t=pById(d.tank); const lv=t&&t.type==='tank'?(t.level||0):0;
+      env()[d.outTag]= d.mode==='low' ? lv<=(d.sp!==undefined?d.sp:0) : lv>=(d.sp!==undefined?d.sp:100);
+    }
+  }
 }
 function plantTick(dt){
   const flows={};
@@ -118,12 +132,19 @@ function symbolSVG(d){
       <text y="-52" text-anchor="middle" font-size="11">${esc(d.name)}</text>
       <text data-lvltxt y="4" text-anchor="middle" font-size="11" fill="#9fe3cb">—</text>
       <text data-over y="-32" text-anchor="middle" font-size="9" fill="#e0864a"></text></g>`;
-    case 'valve': return g+`
+    case 'valve':{
+      // ISA: an actuator bonnet means an automated valve; a bare bowtie is a
+      // hand valve. The bonnet appears only when a position tag drives it.
+      const act=d.posTag
+        ? `<line x1="0" y1="0" x2="0" y2="-12" stroke="#c8963e" stroke-width="1.5"/>
+           <circle cx="0" cy="-15" r="4" fill="none" stroke="#c8963e" stroke-width="1.5"/>`
+        : '';
+      return g+`
       <path class="hull" d="M -14 -9 L 0 0 L -14 9 Z M 14 -9 L 0 0 L 14 9 Z" fill="#1e2a31" stroke="#c8963e" stroke-width="1.5"/>
-      <line x1="0" y1="0" x2="0" y2="-12" stroke="#c8963e" stroke-width="1.5"/>
-      <circle cx="0" cy="-15" r="4" fill="none" stroke="#c8963e" stroke-width="1.5"/>
+      ${act}
       <text y="-26" text-anchor="middle" font-size="10">${esc(d.name)}</text>
       <text data-postxt y="24" text-anchor="middle" font-size="9" fill="#7fa89a">—</text></g>`;
+    }
     case 'pump': return g+`
       <circle class="hull" r="13" fill="#1e2a31" stroke="#3d7a6b" stroke-width="1.5"/>
       <path data-rotor d="M -5 -7 L 8 0 L -5 7 Z" fill="#6c7a85"/>
@@ -134,12 +155,23 @@ function symbolSVG(d){
       <text y="3" text-anchor="middle" font-size="8" fill="#e0864a">LT</text>
       <text y="-16" text-anchor="middle" font-size="10">${esc(d.name)}</text>
       <text data-pvtxt y="24" text-anchor="middle" font-size="9" fill="#7fa89a">${esc(d.pvTag||'—')}</text></g>`;
+    case 'ft': return g+`
+      <circle class="hull" r="11" fill="#1d1712" stroke="#e0864a" stroke-width="1.2"/>
+      <text y="3" text-anchor="middle" font-size="8" fill="#e0864a">FT</text>
+      <text y="-16" text-anchor="middle" font-size="10">${esc(d.name)}</text>
+      <text data-fttxt y="24" text-anchor="middle" font-size="9" fill="#7fa89a">${esc(d.flowTag||'—')}</text></g>`;
+    case 'ls': return g+`
+      <circle class="hull" r="11" fill="#1d1712" stroke="#e0864a" stroke-width="1.2"/>
+      <text y="3" text-anchor="middle" font-size="7.5" fill="#e0864a">${d.mode==='low'?'LSL':'LSH'}</text>
+      <text y="-16" text-anchor="middle" font-size="10">${esc(d.name)}</text>
+      <text data-lstxt y="24" text-anchor="middle" font-size="9" fill="#7fa89a">${esc(d.outTag||'—')}</text></g>`;
     case 'plc': return g+`
       <rect class="hull" x="-26" y="-18" width="52" height="36" rx="4" fill="#131a22" stroke="#4a7dab" stroke-width="1.5"/>
       <line x1="-26" y1="-8" x2="26" y2="-8" stroke="#2c4a66" stroke-width="1"/>
       <circle cx="-20" cy="-13" r="2" fill="#5fd38d"/>
       <text y="8" text-anchor="middle" font-size="9" fill="#7fb2e0">PLC</text>
-      <text y="-24" text-anchor="middle" font-size="10">${esc(d.name)}</text></g>`;
+      <text y="-24" text-anchor="middle" font-size="10">${esc(d.name)}</text>
+      <text y="30" text-anchor="middle" font-size="8" fill="#6c7a85">${esc(d.model?((d.vendor?d.vendor+' ':'')+d.model):'')}</text></g>`;
     case 'supply': return g+`
       <circle class="hull" r="10" fill="#151a1e" stroke="#6c7a85" stroke-width="1.5"/>
       <path d="M -4 0 L 6 0 M 2 -4 L 6 0 L 2 4" stroke="#6c7a85" stroke-width="1.5" fill="none"/>
@@ -169,6 +201,14 @@ function plantRebuild(){
     if(d.type==='lt'&&d.tank){
       const t=pById(d.tank);
       if(t) inst+=`<path class="instline" d="M ${d.x} ${d.y+11} L ${t.x+20} ${t.y-45}"/>`;
+    }
+    if(d.type==='ls'&&d.tank){
+      const t=pById(d.tank);
+      if(t) inst+=`<path class="instline" d="M ${d.x} ${d.y+11} L ${t.x-20} ${t.y-45}"/>`;
+    }
+    if(d.type==='ft'&&d.dev){
+      const t=pById(d.dev);
+      if(t&&(t.type==='valve'||t.type==='pump')) inst+=`<path class="instline" d="M ${d.x} ${d.y+11} L ${t.x} ${t.y-4}"/>`;
     }
   }
   for(const d of plant.devices) syms+=symbolSVG(d);
@@ -200,12 +240,21 @@ function plantPaint(){
     } else if(d.type==='lt'&&d.pvTag){
       const tx=g.querySelector('[data-pvtxt]');
       if(tx) tx.textContent=d.pvTag+' = '+pnum(env()[d.pvTag]).toFixed(1);
+    } else if(d.type==='ft'&&d.flowTag){
+      const tx=g.querySelector('[data-fttxt]');
+      if(tx) tx.textContent=d.flowTag+' = '+pnum(env()[d.flowTag]).toFixed(2);
+    } else if(d.type==='ls'&&d.outTag){
+      const tx=g.querySelector('[data-lstxt]');
+      if(tx) tx.textContent=d.outTag+' = '+(truthy(env()[d.outTag])?'TRIP':'ok');
     }
     if(d._flow!==undefined)
       svg.querySelectorAll(`[data-pipe="${d.id}"]`).forEach(p=>p.classList.toggle('flowing',d._flow>0));
   }
   const rows=[];
-  plantSensorTagSet().forEach(t=>rows.push([t+' (PV)',pnum(env()[t]).toFixed(1)]));
+  plantSensorTagSet().forEach(t=>{
+    const v=env()[t];
+    rows.push([t+' (PV)', typeof v==='boolean' ? (v?'TRUE':'FALSE') : pnum(v).toFixed(1)]);
+  });
   for(const [t,k] of plantActuatorTags())
     rows.push([t, k==='bool'?(truthy(env()[t])?'TRUE':'FALSE'):pnum(env()[t]).toFixed(1)]);
   const pt=document.getElementById('ptags');
@@ -280,11 +329,29 @@ function renderInspector(){
     <div class="irow"><label>max %/s</label><input data-pf="maxFlow" type="number" value="${d.maxFlow!==undefined?d.maxFlow:5}"></div>
     <div class="irow"><label>run tag</label><input data-pf="runTag" value="${esc(d.runTag||'')}" placeholder="BOOL, empty = always run"></div>
     <div class="irow"><label>speed tag</label><input data-pf="speedTag" value="${esc(d.speedTag||'')}" placeholder="0–100, empty = 100"></div>`;
-  if(d.type==='plc') rows+=`
+  if(d.type==='plc'){
+    const vsel=['<option value="">—</option>',
+      ...vendorsFor('plc').map(v=>`<option${v===d.vendor?' selected':''}>${esc(v)}</option>`)].join('');
+    const msel=['<option value="">—</option>',
+      ...modelsFor('plc',d.vendor).map(m=>`<option${m===d.model?' selected':''}>${esc(m)}</option>`)].join('');
+    rows+=`
+    <div class="irow"><label>make</label><select data-pf="vendor">${vsel}</select></div>
+    <div class="irow"><label>model</label><select data-pf="model">${msel}</select></div>
     <div class="irow"><button class="fbtn" data-popen="${esc(d.id)}">open logic — edit this controller's program</button></div>`;
+  }
   if(d.type==='lt') rows+=`
     <div class="irow"><label>tank</label><select data-pf="tank">${opts(['tank'],d.tank)}</select></div>
     <div class="irow"><label>PV tag</label><input data-pf="pvTag" value="${esc(d.pvTag||'')}" placeholder="e.g. rLevel_PV"></div>`;
+  if(d.type==='ft') rows+=`
+    <div class="irow"><label>measures</label><select data-pf="dev">${opts(['valve','pump'],d.dev)}</select></div>
+    <div class="irow"><label>flow tag</label><input data-pf="flowTag" value="${esc(d.flowTag||'')}" placeholder="e.g. rFlow_PV (%/s)"></div>`;
+  if(d.type==='ls') rows+=`
+    <div class="irow"><label>tank</label><select data-pf="tank">${opts(['tank'],d.tank)}</select></div>
+    <div class="irow"><label>trip at %</label><input data-pf="sp" type="number" value="${d.sp!==undefined?d.sp:90}"></div>
+    <div class="irow"><label>direction</label><select data-pf="mode">
+      <option value="high"${d.mode!=='low'?' selected':''}>high — TRUE at/above</option>
+      <option value="low"${d.mode==='low'?' selected':''}>low — TRUE at/below</option></select></div>
+    <div class="irow"><label>out tag</label><input data-pf="outTag" value="${esc(d.outTag||'')}" placeholder="BOOL, e.g. bLevelHiHi"></div>`;
   rows+=`<div class="irow"><button class="fbtn" data-pdel="${esc(d.id)}">delete device</button></div>`;
   el.innerHTML=rows;
 }
@@ -293,12 +360,13 @@ document.getElementById('pinspect').addEventListener('change',e=>{
   if(!f||!pSel) return;
   const d=pById(pSel); if(!d) return;
   let v=e.target.value.trim();
-  if(['level','level0','maxFlow','posConst'].includes(f)){
+  if(['level','level0','maxFlow','posConst','sp'].includes(f)){
     v=parseFloat(v); if(isNaN(v)) v=0;
     v = f==='maxFlow' ? Math.max(0,v) : clamp01(v);
   }
-  if(['posTag','runTag','speedTag','pvTag'].includes(f)&&v&&!/^[A-Za-z_]\w*$/.test(v)){ renderInspector(); return; }
-  d[f]= (v===''&&['posTag','runTag','speedTag','pvTag','from','to','tank'].includes(f)) ? undefined : v;
+  if(['posTag','runTag','speedTag','pvTag','flowTag','outTag'].includes(f)&&v&&!/^[A-Za-z_]\w*$/.test(v)){ renderInspector(); return; }
+  d[f]= (v===''&&['posTag','runTag','speedTag','pvTag','flowTag','outTag','from','to','tank','dev','vendor','model'].includes(f)) ? undefined : v;
+  if(f==='vendor') d.model=undefined;   // model list follows the make
   if(f==='level') d._over=false;   // editing the level clears a stale overflow flag
   plantSave(); plantRebuild(); plantPaint(); renderInspector();
   hooks.onChange();
@@ -312,19 +380,21 @@ document.getElementById('pinspect').addEventListener('click',e=>{
     if(d.from===del) d.from=undefined;
     if(d.to===del) d.to=undefined;
     if(d.tank===del) d.tank=undefined;
+    if(d.dev===del) d.dev=undefined;
   }
   pSel=null;
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();
 });
 document.querySelectorAll('[data-padd]').forEach(b=>b.addEventListener('click',()=>{
   const t=b.dataset.padd;
-  const base={tank:'TK',valve:'LV',pump:'P',lt:'LT',supply:'SUP',drain:'DR',plc:'PLC'}[t];
+  const base={tank:'TK',valve:'LV',pump:'P',lt:'LT',ft:'FT',ls:'LSH',supply:'SUP',drain:'DR',plc:'PLC'}[t];
   let n=1; while(plant.devices.some(d=>d.id===base+'-'+n)) n++;
   const d={id:base+'-'+n,type:t,name:base+'-'+n,
     x:90+((plant.devices.length*40)%300),y:90+((plant.devices.length%5)*70)};
   if(t==='tank'){ d.level=0; d.level0=0; }
   if(t==='valve'){ d.maxFlow=5; d.posConst=0; }
   if(t==='pump'){ d.maxFlow=5; }
+  if(t==='ls'){ d.sp=90; d.mode='high'; }
   if(t==='plc'){ d.program='(* '+d.name+' — write this controller\'s logic here *)\n'; d.inputs={}; }
   plant.devices.push(d); pSel=d.id;
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();
@@ -336,11 +406,12 @@ document.getElementById('pclear').addEventListener('click',()=>{
 
 function plantExample(){
   plant.devices=[
-    {id:'PLC-1',type:'plc',name:'PLC-1',x:120,y:260,program:'',inputs:{}},
+    {id:'PLC-1',type:'plc',name:'PLC-1',x:120,y:260,program:'',inputs:{},vendor:'Simulated',model:'SoftPLC'},
     {id:'SUP-1',type:'supply',name:'SUPPLY',x:70,y:120},
     {id:'LV-101',type:'valve',name:'LV-101',x:190,y:120,from:'SUP-1',to:'TK-101',maxFlow:6,posTag:'rValve_OP'},
     {id:'TK-101',type:'tank',name:'TK-101',x:350,y:230,level:40,level0:40},
     {id:'LT-101',type:'lt',name:'LT-101',x:470,y:150,tank:'TK-101',pvTag:'rLevel_PV'},
+    {id:'LSH-101',type:'ls',name:'LSH-101',x:560,y:250,tank:'TK-101',sp:90,mode:'high',outTag:'bLevelHiHi'},
     {id:'LV-102',type:'valve',name:'LV-102',x:350,y:360,from:'TK-101',to:'DR-1',maxFlow:6,posConst:45},
     {id:'DR-1',type:'drain',name:'DRAIN',x:500,y:360},
   ];

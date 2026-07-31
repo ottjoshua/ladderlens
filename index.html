@@ -108,7 +108,13 @@
       <span>pump</span></button>
     <button data-padd="lt" title="level transmitter — publishes its tank's level to a tag">
       <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="13" fill="#1d1712" stroke="#e0864a" stroke-width="1.2"/><text x="30" y="26" text-anchor="middle" font-size="10" fill="#e0864a">LT</text></svg>
-      <span>transmitter</span></button>
+      <span>level tx</span></button>
+    <button data-padd="ft" title="flow transmitter — publishes the flow through a valve or pump to a tag">
+      <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="13" fill="#1d1712" stroke="#e0864a" stroke-width="1.2"/><text x="30" y="26" text-anchor="middle" font-size="10" fill="#e0864a">FT</text></svg>
+      <span>flow tx</span></button>
+    <button data-padd="ls" title="level switch — publishes TRUE when its tank crosses the trip point (high or low)">
+      <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="13" fill="#1d1712" stroke="#e0864a" stroke-width="1.2"/><text x="30" y="25" text-anchor="middle" font-size="8.5" fill="#e0864a">LSH</text></svg>
+      <span>level sw</span></button>
     <button data-padd="supply" title="supply — an infinite source">
       <svg viewBox="0 0 60 44"><circle cx="30" cy="22" r="12" fill="#151a1e" stroke="#6c7a85" stroke-width="1.5"/><path d="M 25 22 L 37 22 M 32 17 L 37 22 L 32 27" stroke="#6c7a85" stroke-width="1.5" fill="none"/></svg>
       <span>supply</span></button>
@@ -139,9 +145,15 @@
         the plant runs on the same scan as the logic: transmitters write their tank's level into
         their tag <b>before</b> each scan, the logic runs, then valves and pumps move flow and
         tanks integrate it<br><br>
-        <b>valve</b> opens to its tag's value (0–100) · <b>pump</b> runs from a BOOL tag ·
-        <b>LT</b> publishes tank level · flows animate where liquid moves ·
-        a full tank with net inflow shows <b>overflow</b><br><br>
+        <b>valve</b> opens to its tag's value (0–100) — with a position tag it draws as an
+        automated valve, without one it is a hand valve at a constant opening ·
+        <b>pump</b> runs from a BOOL tag · <b>LT</b> publishes tank level ·
+        <b>FT</b> publishes the flow through a valve or pump ·
+        <b>LSH/LSL</b> publishes TRUE when its tank crosses the trip point — wire it into an
+        interlock · flows animate where liquid moves · a full tank with net inflow shows
+        <b>overflow</b><br><br>
+        controllers declare a <b>make and model</b> from the device catalog — identity today,
+        and the anchor for vendor dialect translation on the roadmap<br><br>
         a <b>controller</b> is a device too: select it and press <b>open logic</b> (or double-click
         it) to edit the program it runs · the Logic view shows which program you are editing —
         a controller's, or the free-standing <b>sandbox</b><br><br>
