@@ -3,8 +3,9 @@
 **Structured Text ⇄ Ladder Diagram**
 
 A single-file, offline browser tool that converts between IEC 61131-3
-Structured Text and Ladder Diagram, and evaluates the logic live so you
-can watch rungs energize as inputs change.
+Structured Text and Ladder Diagram — and runs it on a real simulated
+scan cycle, so you can watch rungs energize, seal-in circuits latch,
+and timers count as inputs change.
 
 **[Open the live tool →](https://ottjoshua.github.io/ladderlens/)**
 
@@ -22,6 +23,20 @@ through the energized rungs.
 - Normally-open `[ ]` and normally-closed `[/]` contact gating; `AND`
   conditions draw as series contacts
 - A scan-return path showing the cyclic execution model (`T#100ms`)
+
+**A real scan cycle.** The program executes every 100 ms and state
+persists between scans — a seal-in rung actually latches. Stateful
+function blocks work the way the standard says they do:
+
+- `TON` / `TOF` / `TP` timers, `CTU` / `CTD` counters,
+  `R_TRIG` / `F_TRIG` edge detection
+- Declare instances in `VAR … END_VAR`, call them
+  (`tmr(IN := bRun, PT := T#5s);`), read the outputs (`tmr.Q`, `tmr.ET`)
+- `TIME` literals (`T#500ms`, `T#1m30s`)
+- **run / stop / step / reset** controls — single-step the scan and watch
+  a timer accumulate 100 ms at a time; reset is a cold restart
+- A timer called inside an `IF` freezes when the condition drops — the
+  tool warns about it, because that's the classic gated-timer bug
 
 **Ladder → Text.** The diagram is editable in place, and the Structured
 Text regenerates as you work:
@@ -66,11 +81,12 @@ Everything runs client-side. Nothing is uploaded.
 
 ## Scope and limits
 
-This is a teaching aid, not a compiler. It covers the common
-control-logic subset. It does **not** render parallel (OR) contact
-branches as vertical rungs, boolean-logic-to-coil, timers, or function
-blocks with internal state. `FOR` / `WHILE` are explained rather than
-drawn, by design.
+This is a teaching aid, not a compiler or a controller. It covers the
+common control-logic subset with untyped tags. It does **not** render
+parallel (OR) contact branches as vertical rungs, or model real-time
+determinism — the scan pauses while the tab is hidden, and pulses
+shorter than one scan period are missed (as on a real PLC). `FOR` /
+`WHILE` are explained rather than drawn, by design.
 
 ## License
 
