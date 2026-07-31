@@ -34,11 +34,11 @@ DMZ, enterprise. The whole workspace saves in the browser and travels
 as a single **`.llp` project file** — build a plant with a broken
 controller, export it, and hand it to a class to fix.
 
-On the roadmap: simulated traffic on the conduits (Modbus, DNP3,
-EtherNet/IP) so you can watch devices talk, Function Block Diagram as
-a third lens on the same program, vendor dialect detection and
-translation for the text side (IEC / Siemens SCL / Rockwell), and a
-richer ISA-5.1 symbol library.
+On the roadmap: Function Block Diagram as a third lens on the same
+program, vendor dialect detection and translation for the text side
+(IEC / Siemens SCL / Rockwell), a richer ISA-5.1 symbol library, and
+more of the network model — addressing, and attacks worth teaching
+against.
 
 ## What it does
 
@@ -122,6 +122,21 @@ Network devices — HMI, engineering workstation, historian, server,
 switch, firewall — are added here and link into **conduits** carrying
 a protocol (Ethernet, Modbus TCP, EtherNet/IP, DNP3, PROFINET,
 OPC UA). Drag a card to move a device between levels.
+
+**Traffic runs on the same clock as the plant.** HMIs, workstations
+and historians poll the controllers they are linked to; a request
+travels along the conduit and a reply comes back carrying a live tag
+value read out of the running scan. Click a conduit to set its
+protocol, poll rate, and which tag it reads.
+
+**A firewall has a rule set.** Choose which protocols it permits —
+the default is OPC UA and plain Ethernet, what a DMZ firewall would
+actually allow. Traffic it denies stops at the boundary instead of
+arriving. Alongside, a **segmentation review** names what an assessor
+would write up: a firewall permitting control protocols, a link
+carrying one across the DMZ, enterprise systems reaching straight
+into the plant, conduits that skip levels. The shipped example is
+properly segmented — the panel stays empty until you break it.
 
 **Files.** The whole workspace — devices, controller programs, input
 values — exports as one readable **`.llp` project file** (versioned
