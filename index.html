@@ -225,35 +225,35 @@ header .scan{margin-top:0;flex:0 0 auto}
     <div class="phead">
       <p class="lbl">Structured text</p>
       <span class="sp"></span>
-      <button id="openst" class="fbtn" title="load a Structured Text file (or drop one on the editor)">open .st file</button>
-      <button id="exportst" class="fbtn" title="download the current program as a .st file">export .st</button>
-      <input type="file" id="stfile" accept=".st,.stx,.iecst,.txt,.exp,.pou" hidden>
+      <button data-el="openst" class="fbtn" title="load a Structured Text file (or drop one on the editor)">open .st file</button>
+      <button data-el="exportst" class="fbtn" title="download the current program as a .st file">export .st</button>
+      <input type="file" data-el="stfile" accept=".st,.stx,.iecst,.txt,.exp,.pou" hidden>
     </div>
-    <textarea id="src" spellcheck="false"></textarea>
+    <textarea data-el="src" spellcheck="false"></textarea>
     <div class="bar">
       <span class="barlbl">examples</span>
-      <button id="ex1">level controller</button>
-      <button id="ex2">level controller with sign error</button>
-      <button id="ex3">Interlock</button>
-      <button id="ex4">CASE</button>
-      <button id="ex5">FOR loop</button>
-      <button id="ex6">Seal-in + timer</button>
+      <button data-ex="ex1">level controller</button>
+      <button data-ex="ex2">level controller with sign error</button>
+      <button data-ex="ex3">Interlock</button>
+      <button data-ex="ex4">CASE</button>
+      <button data-ex="ex5">FOR loop</button>
+      <button data-ex="ex6">Seal-in + timer</button>
     </div>
-    <div id="err"></div>
+    <div data-el="err"></div>
 
     <div class="vars">
       <p class="lbl">Inputs</p>
-      <div class="vgrid" id="inputs"></div>
+      <div class="vgrid" data-el="inputs"></div>
       <p class="lbl" style="margin-top:16px">Outputs this scan</p>
-      <div class="vgrid" id="outputs"></div>
+      <div class="vgrid" data-el="outputs"></div>
     </div>
   </section>
 
   <section class="pane">
     <p class="lbl">Ladder diagram</p>
-    <div class="canvas" id="canvas"></div>
-    <div class="canvasbar"><button id="addrung">+ rung</button></div>
-    <div id="cwarn"></div>
+    <div class="canvas" data-el="canvas"></div>
+    <div class="canvasbar"><button data-el="addrung">+ rung</button></div>
+    <div data-el="cwarn"></div>
     <div class="legend">
       <b>[ ]</b> normally open — passes power when TRUE &nbsp;·&nbsp; <b>[/]</b> normally closed — passes power when FALSE<br>
       series contacts are <b>AND</b> · parallel branches are <b>OR</b> · <b>+∥</b> adds a branch ·
@@ -309,7 +309,7 @@ header .scan{margin-top:0;flex:0 0 auto}
 </div>
 
 
-<script type="module" src="./js/app.js"></script>
+<script type="module" src="./js/shell.js"></script>
 </body>
 </html>
 

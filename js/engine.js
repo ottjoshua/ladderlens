@@ -2,6 +2,7 @@
    PolyForm Noncommercial 1.0.0 — commercial use requires a separate license. */
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pnum=v=>{ const n=typeof v==='boolean'?(v?1:0):parseFloat(v); return isNaN(n)?0:n; };
 
 /* ---------- tokenizer ---------- */
 function lex(src){
@@ -761,4 +762,4 @@ function evaluate(prog,env,dt,fbStates){
 }
 
 
-export {esc,lex,parseTimeLiteral,KW,FUNCS,FB,PLAINTYPES,parse,collectTargets,flatten,exprToST,parseExprText,fbCallToST,unparseStmt,orTerms,toSeries,guardsToNet,seriesToExpr,pruneNet,netAt,buildModel,isBoolExpr,blocks,contactText,wrapGuards,modelToST,staleWarnings,scan,truthy,evalExpr,runFB,evaluate};
+export {esc,pnum,lex,parseTimeLiteral,KW,FUNCS,FB,PLAINTYPES,parse,collectTargets,flatten,exprToST,parseExprText,fbCallToST,unparseStmt,orTerms,toSeries,guardsToNet,seriesToExpr,pruneNet,netAt,buildModel,isBoolExpr,blocks,contactText,wrapGuards,modelToST,staleWarnings,scan,truthy,evalExpr,runFB,evaluate};

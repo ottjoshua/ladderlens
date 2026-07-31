@@ -77,4 +77,14 @@ rPumpSpeed := LIMIT(0.0, rPumpSpeed, 100.0);`
 };
 
 
-export {EX};
+/* per-example input presets — loaded alongside the program */
+const EX_DEFAULTS={
+  ex1:{rLC_SP:60,rLevel_PV:50,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false},
+  ex2:{rLC_SP:60,rLevel_PV:40,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false},
+  ex3:{rLevel:20,rTripPoint:15,rSpeedRef:80,rEnableScale:1,bLowLevelTrip:false},
+  ex4:{iMode:1,rManualCmd:40,rAutoCmd:55,rTrim:1,rSafeCmd:0},
+  ex5:{rSample:25},
+  ex6:{bStart:false,bStop:false}
+};
+
+export {EX, EX_DEFAULTS};
