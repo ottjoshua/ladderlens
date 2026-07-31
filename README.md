@@ -7,7 +7,7 @@ Structured Text and Ladder Diagram — and runs it on a real simulated
 scan cycle, so you can watch rungs energize, seal-in circuits latch,
 and timers count as inputs change.
 
-**[Open the live tool →](https://ottjoshua.github.io/ladderlens/)**
+**[Open the live tool →](https://ladderlens.com/)**
 
 ---
 
