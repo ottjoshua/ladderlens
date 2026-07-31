@@ -28,17 +28,17 @@ tanks, valves, pumps, transmitters, and **controllers**. Open a
 controller (double-click it) and the **Logic view** shows the program
 that controller runs, as IEC 61131-3 Structured Text and Ladder
 Diagram — two live, editable projections of the same program on a
-real scan cycle. The whole workspace saves in the browser and travels
+real scan cycle. The **Purdue view** shows those same devices where
+they sit in the network: field, control, supervisory, operations,
+DMZ, enterprise. The whole workspace saves in the browser and travels
 as a single **`.llp` project file** — build a plant with a broken
 controller, export it, and hand it to a class to fix.
 
-On the roadmap: Function Block Diagram as a third lens on the same
-program, vendor dialect detection and translation for the text side
-(IEC / Siemens SCL / Rockwell), a richer ISA-5.1 symbol library, a
-Purdue Model view that places these same devices in their network
-levels with firewalls on the conduits, and simulated industrial
-protocols (Modbus, DNP3, EtherNet/IP) with visible traffic between
-devices.
+On the roadmap: simulated traffic on the conduits (Modbus, DNP3,
+EtherNet/IP) so you can watch devices talk, Function Block Diagram as
+a third lens on the same program, vendor dialect detection and
+translation for the text side (IEC / Siemens SCL / Rockwell), and a
+richer ISA-5.1 symbol library.
 
 ## What it does
 
@@ -112,6 +112,16 @@ moved, one scan behind like real field instrumentation) and a
 trip point, the classic interlock input). Valves follow ISA drafting:
 a valve driven by a tag gets an actuator bonnet, a valve at a fixed
 opening draws as a hand valve.
+
+**The Purdue view.** The third view draws every device in the project
+as a card in its ISA-95 level — Level 0 field, Level 1 control,
+Level 2 supervisory, Level 3 operations, DMZ, Level 4 enterprise. It
+is the same project: the tank you drew on the P&ID *is* the card in
+Level 0, and double-clicking a controller card opens its logic.
+Network devices — HMI, engineering workstation, historian, server,
+switch, firewall — are added here and link into **conduits** carrying
+a protocol (Ethernet, Modbus TCP, EtherNet/IP, DNP3, PROFINET,
+OPC UA). Drag a card to move a device between levels.
 
 **Files.** The whole workspace — devices, controller programs, input
 values — exports as one readable **`.llp` project file** (versioned
