@@ -11,6 +11,28 @@ and timers count as inputs change.
 
 ---
 
+## The vision: a Packet Tracer for OT
+
+Networking students have Packet Tracer — free, faithful-enough
+simulation that made real gear optional for learning. OT has nothing
+like it: training happens on expensive vendor benches, expensive
+operator-training simulators, or not at all.
+
+LadderLens is being built toward that gap, one working release at a
+time. Today it has two views: **Logic**, where IEC 61131-3 Structured
+Text and Ladder Diagram are two live, editable projections of the same
+program running on a real scan cycle — and **Plant**, a P&ID canvas
+where tanks, valves, pumps, and transmitters bind to the same tags and
+the process physically responds to your logic.
+
+On the roadmap: Function Block Diagram as a third lens on the same
+program, vendor dialect detection and translation for the text side
+(IEC / Siemens SCL / Rockwell), a richer ISA-5.1 symbol library, a
+Purdue Model view of the plant's network levels, and simulated
+industrial protocols (Modbus, DNP3, EtherNet/IP) with visible traffic
+between devices — the editor becoming one panel of a full OT
+workspace.
+
 ## What it does
 
 **Text → Ladder.** Type Structured Text on the left, get rungs on the
@@ -101,11 +123,22 @@ real-time determinism — the scan pauses while the tab is hidden, and
 pulses shorter than one scan period are missed (as on a real PLC).
 `FOR` / `WHILE` are explained rather than drawn, by design.
 
+## Contributing
+
+Forks, issues, and pull requests are welcome — this is a teaching tool
+and it gets better with more eyes from people who live in OT. By
+submitting a contribution you agree that it is provided under this
+project's license, and you grant the project author the right to
+include it in commercially licensed versions of the software.
+
 ## License
 
-Copyright © 2026 Joshua Ott. All rights reserved. See [LICENSE](LICENSE).
+Copyright © 2026 Joshua Ott. Licensed under the
+**PolyForm Noncommercial License 1.0.0** — see [LICENSE](LICENSE).
 
-Anyone is welcome to **use** the tool — at the hosted link above or from
-a downloaded copy. The source code may not be copied, modified,
-redistributed, or reused in other projects without written permission.
+In plain words: use it, fork it, modify it, share it, learn from it —
+freely, for any noncommercial purpose — and keep the copyright notice
+with it. **Any commercial use requires a separate commercial license**:
+if this code ends up in something that makes money, its author gets
+paid. Ask via [GitHub](https://github.com/ottjoshua).
 
