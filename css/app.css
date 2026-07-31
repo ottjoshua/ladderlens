@@ -219,8 +219,20 @@ header .scan{margin-top:0;flex:0 0 auto}
 #qcanvas .pcard .hull{fill:#171d22;stroke:#2b343c;stroke-width:1.2}
 #qcanvas .pcard.net .hull{stroke:#3a4750}
 #qcanvas .pcard.sel .hull{stroke:var(--rail);stroke-width:2}
-#qcanvas .conduit{stroke:var(--wire);stroke-width:1.6;fill:none;opacity:.75}
-#qcanvas .clbl{fill:var(--dim);font-size:8.5px}
+#qcanvas .conduit{stroke:var(--wire);stroke-width:1.6;fill:none;opacity:.75;pointer-events:none}
+#qcanvas .conduit.sel{stroke:var(--rail);stroke-width:2.4;opacity:1}
+#qcanvas .conduit.blocked{stroke:var(--warn);stroke-dasharray:4 4}
+#qcanvas .chit{stroke:transparent;stroke-width:14;fill:none;cursor:pointer}
+#qcanvas .clbl{fill:var(--dim);font-size:8.5px;pointer-events:none}
+#qcanvas .pkt{fill:var(--hot);pointer-events:none}
+#qcanvas .pkt.rep{fill:#7fb2e0}
+#qcanvas .pkt.drop{fill:var(--warn)}
+#qinspect .fwrule{margin:2px 0}
+#qinspect .tog{display:flex;align-items:center;gap:6px;color:var(--ink);min-width:0}
+#qinspect .warnnote{color:var(--warn)}
+#qinspect input[type=number],#qinspect input[type=text],#qinspect input:not([type]){
+  background:#151a1e;border:1px solid #2b343c;color:var(--ink);
+  font-family:var(--mono);font-size:11px;padding:2px 5px;border-radius:3px;width:110px}
 #qinspect{background:var(--panel);border:1px solid #2b343c;border-radius:5px;padding:11px 13px;
   font-family:var(--mono);font-size:11px;color:var(--ink)}
 #qinspect .irow{display:flex;align-items:center;gap:8px;margin:5px 0;flex-wrap:wrap}

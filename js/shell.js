@@ -5,6 +5,7 @@ import {esc} from './engine.js';
 import {createLogicPanel, SCAN_MS} from './ladder.js';
 import {createPlant} from './plant.js';
 import {createPurdue} from './purdue.js';
+import {createNet} from './net.js';
 import {createProject} from './project.js';
 import {EX, EX_DEFAULTS} from './examples.js';
 
@@ -45,9 +46,10 @@ const plant=createPlant({
   },
   onOpenLogic:id=>{ activate(id); setView('logic'); }
 });
+const net=createNet({project, env:()=>panel?panel.env():{}});
 const purdue=createPurdue({
-  project,
-  onChange:()=>renderTargets(),
+  project, net,
+  onChange:()=>{ renderTargets(); purdue.findings(); },
   onOpenLogic:id=>{ activate(id); setView('logic'); }
 });
 panel=createLogicPanel(document.getElementById('readwrap'),{
@@ -110,7 +112,11 @@ document.getElementById('resetbtn').addEventListener('click',()=>panel.reset());
 
 /* the scan genuinely pauses while the tab is hidden (browsers throttle hidden
    timers anyway); on return, the gap is not counted into dt */
-setInterval(()=>{ if(panel.isRunning()&&!document.hidden) panel.scanTick(); }, SCAN_MS);
+setInterval(()=>{
+  if(!panel.isRunning()||document.hidden) return;
+  panel.scanTick();
+  net.tick(SCAN_MS);      // conduits carry traffic on the same clock as the plant
+}, SCAN_MS);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) panel.clockReset(); });
 
 /* leaving the page: the active target keeps its latest program and values */
@@ -159,8 +165,9 @@ function setView(v){
   document.getElementById('plantwrap').hidden = v!=='pid';
   document.getElementById('purduewrap').hidden = v!=='purdue';
   // both canvases measure their container, so they must draw while visible
+  if(v!=='purdue') purdue.stopAnimating();
   if(v==='pid'){ plant.rebuild(); plant.paint(); plant.inspector(); }
-  else if(v==='purdue'){ purdue.rebuild(); purdue.inspector(); }
+  else if(v==='purdue'){ purdue.rebuild(); purdue.inspector(); purdue.findings(); purdue.animate(); }
   else panel.rerender();
 }
 document.querySelectorAll('.mode').forEach(btn=>btn.addEventListener('click',()=>setView(btn.dataset.view)));

@@ -195,14 +195,17 @@
     <svg id="qcanvas" xmlns="http://www.w3.org/2000/svg"></svg>
     <div class="wbbar">
       <span class="wbhint">every device from the P&amp;ID appears in its level · drag a card between lanes ·
-        link two devices to draw a conduit · double-click a controller to open its logic</span>
+        link two devices to draw a conduit · click a conduit to set its traffic ·
+        double-click a controller to open its logic</span>
     </div>
   </section>
 
   <aside class="sidebar">
-    <p class="lbl">Placement</p>
-    <div id="qinspect">click a device to place it in a level — drag it between lanes</div>
+    <p class="lbl">Placement &amp; traffic</p>
+    <div id="qinspect">click a device to place it in a level, or a conduit to configure its traffic</div>
     <div class="irow" style="margin-top:9px"><button class="fbtn" id="qdel">delete network device</button></div>
+    <p class="lbl" style="margin-top:18px">Segmentation review</p>
+    <div id="qwarn"></div>
     <details class="help">
       <summary>about the Purdue model</summary>
       <div class="legend">
@@ -214,9 +217,13 @@
         <b>Level 4</b> the business network<br><br>
         this is the same project you drew on the P&amp;ID — a tank in Level 0 here <b>is</b> the tank
         on the P&amp;ID, and a controller you place in Level 1 is the one running your logic<br><br>
-        a <b>firewall</b> is a device on a conduit, the way a valve sits in a pipe · conduits carry a
-        protocol (Modbus TCP, EtherNet/IP, DNP3, PROFINET, OPC UA) — simulated traffic on them is
-        the next step on the roadmap
+        a <b>firewall</b> is a device on a conduit, the way a valve sits in a pipe — click it to set
+        which protocols it permits, and watch denied packets stop at it<br><br>
+        <b>traffic runs on the scan clock:</b> HMIs, workstations and historians poll the controllers
+        they are linked to; a request travels out and a reply comes back carrying a live tag value.
+        Click a conduit to set its protocol, poll rate, and which tag it reads<br><br>
+        the <b>segmentation review</b> flags what an assessor would write up: traffic that skips
+        levels, control protocols crossing the DMZ, enterprise systems reaching into the plant
       </div>
     </details>
   </aside>

@@ -3,6 +3,7 @@
 
 import {esc} from './engine.js';
 import {LEVELS,isNetType,defaultLevel,PROTOCOLS} from './project.js';
+import {DMZ_SAFE} from './net.js';
 
 /* ---------- the Purdue view ----------
    The same project devices, projected into ISA-95 levels instead of onto a
@@ -11,11 +12,12 @@ import {LEVELS,isNetType,defaultLevel,PROTOCOLS} from './project.js';
    appear here; conduits between devices are the links, and a firewall is a
    device the conduit passes through, the way a valve sits in a pipe. */
 export function createPurdue(hooksIn={}){
-const hooks=Object.assign({project:null, onChange(){}, onOpenLogic(){}},hooksIn);
+const hooks=Object.assign({project:null, onChange(){}, onOpenLogic(){}, net:null},hooksIn);
 const proj=hooks.project.data;
+const net=hooks.net;
 
 const LANE_H=112, PAD=14, LABEL_W=168, CARD_W=104, CARD_H=52, GAP=18;
-let sel=null, drag=null;
+let sel=null, drag=null, selConn=null;   // selConn = "from|to" of an inspected conduit
 
 const byId=id=>proj.devices.find(d=>d.id===id);
 /* a device created on the P&ID has never declared a level — it sits at its
@@ -103,19 +105,54 @@ function rebuild(){
       d=`M ${a.x} ${a.y} C ${a.x} ${mid}, ${b.x} ${mid}, ${b.x} ${b.y}`;
       ly=mid-3;
     }
-    links+=`<path class="conduit" data-cid="${esc(c.from)}|${esc(c.to)}" d="${d}"/>`
+    const cid=c.from+'|'+c.to;
+    const blocked=net&&net.blockedBy(c);
+    const cls='conduit'+(selConn===cid?' sel':'')+(blocked?' blocked':'');
+    links+=`<path class="chit" data-cid="${esc(cid)}" d="${d}"/>`
+      +`<path class="${cls}" data-cpath="${esc(cid)}" d="${d}"/>`
       +`<text class="clbl" x="${(a.x+b.x)/2}" y="${ly}" text-anchor="middle" font-size="8.5">${esc(c.proto)}</text>`;
   }
   let cards='';
   for(const d of proj.devices){ const p=pos.get(d.id); if(p) cards+=card(d,p); }
-  svg.innerHTML=lanes+links+cards;
+  svg.innerHTML=lanes+links+cards+'<g class="pkts"></g>';
+  paintPackets();
 }
+
+/* packets ride the conduit path itself, so they follow whatever curve the
+   layout produced — recomputed per frame from the traffic model */
+function paintPackets(){
+  const svg=document.getElementById('qcanvas');
+  const layer=svg&&svg.querySelector('.pkts');
+  if(!layer||!net) return;
+  const list=net.packets();
+  const cache=new Map();
+  const pathFor=k=>{
+    if(cache.has(k)) return cache.get(k);
+    const p=svg.querySelector(`[data-cpath="${CSS.escape(k)}"]`);
+    cache.set(k,p);
+    return p;
+  };
+  let html='';
+  for(const pk of list){
+    const path=pathFor(pk.key);
+    if(!path) continue;
+    let pt;
+    try{ pt=path.getPointAtLength(path.getTotalLength()*Math.max(0,Math.min(1,pk.t))); }
+    catch(e){ continue; }
+    const cls='pkt '+(pk.dropped?'drop':pk.kind);
+    html+=`<circle class="${cls}" cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="${pk.kind==='rep'?3.4:3}"/>`;
+  }
+  layer.innerHTML=html;
+}
+
+const connByKey=k=>(proj.connections||[]).find(c=>c.from+'|'+c.to===k);
 
 function renderInspector(){
   const el=document.getElementById('qinspect');
   if(!el) return;
+  if(selConn){ renderConduitInspector(el); return; }
   const d=sel?byId(sel):null;
-  if(!d){ el.innerHTML='click a device to place it in a level — drag it between lanes'; return; }
+  if(!d){ el.innerHTML='click a device to place it in a level, or a conduit to configure its traffic'; return; }
   const lvOpts=LEVELS.map(L=>`<option value="${L.id}"${levelOf(d)===L.id?' selected':''}>${esc(L.label)}</option>`).join('');
   const others=proj.devices.filter(x=>x.id!==d.id);
   const linked=new Set((proj.connections||[]).filter(c=>c.from===d.id||c.to===d.id)
@@ -135,7 +172,39 @@ function renderInspector(){
     <div class="irow"><label>level</label><select data-qlevel>${lvOpts}</select></div>
     ${linkRows}
     <div class="irow"><label>link</label><select data-qlink>${addOpts}</select></div>
+    ${d.type==='firewall'?fwPolicyRows(d):''}
     ${d.type==='plc'?`<div class="irow"><button class="fbtn" data-qopen="${esc(d.id)}">open logic</button></div>`:''}`;
+}
+
+/* a firewall's rule set: which protocols it lets across */
+function fwPolicyRows(d){
+  const allow=Array.isArray(d.allow)?d.allow:DMZ_SAFE;
+  return `<div class="irow"><label>permits</label></div>`
+    +PROTOCOLS.map(p=>`<div class="irow fwrule"><label></label>
+      <label class="tog"><input type="checkbox" data-qallow="${esc(p)}"${allow.includes(p)?' checked':''}>${esc(p)}</label>
+      </div>`).join('');
+}
+
+function renderConduitInspector(el){
+  const c=connByKey(selConn);
+  if(!c){ selConn=null; renderInspector(); return; }
+  const a=byId(c.from), b=byId(c.to);
+  const protoOpts=PROTOCOLS.map(p=>`<option${c.proto===p?' selected':''}>${esc(p)}</option>`).join('');
+  const st=net?net.stats().get(selConn):null;
+  const polls=net?net.pollDirection(c):null;
+  const fw=net?net.blockedBy(c):null;
+  el.innerHTML=`
+    <div class="irow"><label>conduit</label><b>${esc(a?a.name:c.from)} ↔ ${esc(b?b.name:c.to)}</b></div>
+    <div class="irow"><label>protocol</label><select data-qcproto>${protoOpts}</select></div>
+    <div class="irow"><label>polls/s</label><input data-qcrate type="number" min="0" max="20" step="0.5"
+      value="${Number.isFinite(c.rate)?c.rate:1}"></div>
+    <div class="irow"><label>reads tag</label><input data-qctag value="${esc(c.tag||'')}" placeholder="a controller tag"></div>
+    <div class="irow"><label>traffic</label><span class="out">${
+      polls ? (st?`${st.sent} sent${st.dropped?', '+st.dropped+' dropped':''}`:'starting…')
+            : 'idle — no client on this conduit'}</span></div>
+    ${st&&st.last?`<div class="irow"><label>last</label><span class="out">${esc(st.last)}</span></div>`:''}
+    ${fw?`<div class="irow"><span class="warnnote">${esc(fw.name)} denies ${esc(c.proto)} — packets stop there</span></div>`:''}
+    <div class="irow"><button class="fbtn" data-qcdel>remove this conduit</button></div>`;
 }
 
 function paint(){
@@ -157,7 +226,15 @@ function svgPoint(e){
 if(svgEl){
   svgEl.addEventListener('pointerdown',e=>{
     const g=e.target.closest('.pcard');
-    if(!g){ sel=null; rebuild(); renderInspector(); return; }
+    if(!g){
+      // a click on a conduit inspects it; a click on empty canvas clears
+      const hit=e.target.closest('[data-cid]');
+      selConn=hit?hit.dataset.cid:null;
+      if(selConn) sel=null;
+      rebuild(); renderInspector();
+      return;
+    }
+    selConn=null;
     sel=g.dataset.nid;
     drag={id:sel,moved:false,pid:e.pointerId};
     // capture on the canvas, not the card: rebuild() replaces the card element
@@ -195,7 +272,31 @@ if(svgEl){
 const inspEl=document.getElementById('qinspect');
 if(inspEl){
   inspEl.addEventListener('change',e=>{
+    if(selConn){
+      const c=connByKey(selConn); if(!c) return;
+      if(e.target.hasAttribute('data-qcproto')) c.proto=e.target.value;
+      else if(e.target.hasAttribute('data-qcrate')){
+        const v=parseFloat(e.target.value);
+        c.rate = Number.isFinite(v)&&v>0 ? Math.min(v,20) : 1;
+      }
+      else if(e.target.hasAttribute('data-qctag')){
+        const v=e.target.value.trim();
+        if(v&&!/^[A-Za-z_]\w*$/.test(v)){ renderInspector(); return; }
+        c.tag = v||undefined;
+      }
+      else return;
+      hooks.project.save(); rebuild(); renderInspector(); hooks.onChange();
+      return;
+    }
     const d=sel?byId(sel):null; if(!d) return;
+    if(e.target.dataset.qallow!==undefined){
+      const p=e.target.dataset.qallow;
+      const allow=new Set(Array.isArray(d.allow)?d.allow:DMZ_SAFE);
+      if(e.target.checked) allow.add(p); else allow.delete(p);
+      d.allow=[...allow];
+      hooks.project.save(); rebuild(); renderInspector(); hooks.onChange();
+      return;
+    }
     if(e.target.hasAttribute('data-qlevel')){
       setLevel(d,Number(e.target.value));
     } else if(e.target.hasAttribute('data-qlink')){
@@ -214,6 +315,12 @@ if(inspEl){
   inspEl.addEventListener('click',e=>{
     const open=e.target.dataset.qopen;
     if(open){ hooks.onOpenLogic(open); return; }
+    if(e.target.hasAttribute('data-qcdel')&&selConn){
+      proj.connections=(proj.connections||[]).filter(c=>c.from+'|'+c.to!==selConn);
+      selConn=null;
+      hooks.project.save(); rebuild(); renderInspector(); hooks.onChange();
+      return;
+    }
     const un=e.target.dataset.qunlink;
     if(un&&sel){
       proj.connections=(proj.connections||[]).filter(c=>
@@ -253,6 +360,33 @@ window.addEventListener('resize',()=>{
   },150);
 });
 
-return {rebuild, paint, inspector:renderInspector,
-  select(id){ sel=id; rebuild(); renderInspector(); }};
+/* the segmentation review, refreshed with the diagram */
+function renderFindings(){
+  const el=document.getElementById('qwarn');
+  if(!el||!net) return;
+  const w=net.findings();
+  const html=w.length?'<div class="warnbox">'+w.map(x=>'&middot; '+x).join('<br>')+'</div>':'';
+  if(el.dataset.sig!==html){ el.innerHTML=html; el.dataset.sig=html; }
+}
+
+/* one animation loop for the whole view: packets move continuously while the
+   scan runs, independent of the 100 ms tick that generates them */
+let raf=null;
+function frame(){
+  raf=null;
+  const wrap=document.getElementById('purduewrap');
+  if(wrap&&!wrap.hidden){ paintPackets(); renderFindings(); }
+  start();
+}
+function start(){
+  if(raf!==null) return;
+  const wrap=document.getElementById('purduewrap');
+  if(!wrap||wrap.hidden) return;      // hidden views cost nothing
+  raf=requestAnimationFrame(frame);
+}
+function stop(){ if(raf!==null){ cancelAnimationFrame(raf); raf=null; } }
+
+return {rebuild, paint, inspector:renderInspector, findings:renderFindings,
+  animate:start, stopAnimating:stop,
+  select(id){ sel=id; selConn=null; rebuild(); renderInspector(); }};
 }
