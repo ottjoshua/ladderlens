@@ -34,11 +34,11 @@ controller, export it, and hand it to a class to fix.
 
 On the roadmap: Function Block Diagram as a third lens on the same
 program, vendor dialect detection and translation for the text side
-(IEC / Siemens SCL / Rockwell), device catalogs (vendor/model), a
-richer ISA-5.1 symbol library, a Purdue Model view that places these
-same devices in their network levels with firewalls on the conduits,
-and simulated industrial protocols (Modbus, DNP3, EtherNet/IP) with
-visible traffic between devices.
+(IEC / Siemens SCL / Rockwell), a richer ISA-5.1 symbol library, a
+Purdue Model view that places these same devices in their network
+levels with firewalls on the conduits, and simulated industrial
+protocols (Modbus, DNP3, EtherNet/IP) with visible traffic between
+devices.
 
 ## What it does
 
@@ -100,7 +100,18 @@ actually flows.
 it and press **open logic** (or double-click it) — the Logic view
 edits the program that controller runs. Target chips in the Logic view
 switch between any controller's program and a free-standing
-**sandbox**, each keeping its own program and input values.
+**sandbox**, each keeping its own program and input values. Each
+controller declares a **make and model** from the device catalog
+(Siemens, Rockwell, Schneider, Honeywell) — identity today, and the
+anchor for vendor dialect translation on the roadmap.
+
+**Instruments.** Beyond the level transmitter, the palette carries a
+**flow transmitter** (publishes the flow a valve or pump actually
+moved, one scan behind like real field instrumentation) and a
+**level switch** (LSH/LSL — publishes TRUE when its tank crosses a
+trip point, the classic interlock input). Valves follow ISA drafting:
+a valve driven by a tag gets an actuator bonnet, a valve at a fixed
+opening draws as a hand valve.
 
 **Files.** The whole workspace — devices, controller programs, input
 values — exports as one readable **`.llp` project file** (versioned
