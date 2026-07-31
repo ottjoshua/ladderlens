@@ -206,6 +206,26 @@ header .scan{margin-top:0;flex:0 0 auto}
   .workbench #pcanvas{min-height:340px}
 }
 
+/* ---- Purdue view: level lanes, device cards, conduits ---- */
+#qcanvas{display:block;width:100%;background:var(--panel);border:1px solid #2b343c;border-radius:5px}
+.workbench #qcanvas{flex:0 0 auto}
+#qcanvas text{font-family:var(--mono);fill:var(--ink);pointer-events:none}
+#qcanvas .lane rect{fill:#12171b;stroke:#232c33}
+#qcanvas .lane.dmz rect{fill:#1d1712;stroke:#4a3524;stroke-dasharray:5 4}
+#qcanvas .lane text{fill:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+#qcanvas .pcard{cursor:grab}
+#qcanvas .pcard .hull{fill:#171d22;stroke:#2b343c;stroke-width:1.2}
+#qcanvas .pcard.net .hull{stroke:#3a4750}
+#qcanvas .pcard.sel .hull{stroke:var(--rail);stroke-width:2}
+#qcanvas .conduit{stroke:var(--wire);stroke-width:1.6;fill:none;opacity:.75}
+#qcanvas .clbl{fill:var(--dim);font-size:8.5px}
+#qinspect{background:var(--panel);border:1px solid #2b343c;border-radius:5px;padding:11px 13px;
+  font-family:var(--mono);font-size:11px;color:var(--ink)}
+#qinspect .irow{display:flex;align-items:center;gap:8px;margin:5px 0;flex-wrap:wrap}
+#qinspect label{min-width:74px;color:var(--dim)}
+#qinspect select{background:#151a1e;border:1px solid #2b343c;color:var(--ink);
+  font-family:var(--mono);font-size:11px;padding:2px 5px;border-radius:3px}
+
 #pcanvas{display:block;width:100%;height:440px;background:var(--panel);border:1px solid #2b343c;border-radius:5px;
   touch-action:none;user-select:none}
 #pcanvas text{font-family:var(--mono);fill:var(--ink);pointer-events:none}

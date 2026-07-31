@@ -3,7 +3,7 @@
 
 import {esc,truthy,pnum} from './engine.js';
 import {vendorsFor,modelsFor} from './catalog.js';
-import {validTag} from './project.js';
+import {validTag,isProcessType,defaultLevel} from './project.js';
 
 /* The plant simulation + P&ID canvas. It reads and writes PLC tags only
    through hooks.env() — the environment of the controller it is wired to —
@@ -224,7 +224,8 @@ function plantRebuild(){
       if(t&&(t.type==='valve'||t.type==='pump')) inst+=`<path class="instline" d="M ${d.x} ${d.y+11} L ${t.x} ${t.y-4}"/>`;
     }
   }
-  for(const d of plant.devices) syms+=symbolSVG(d);
+  // network devices belong to the Purdue view; the P&ID draws process only
+  for(const d of plant.devices) if(isProcessType(d.type)) syms+=symbolSVG(d);
   svg.innerHTML=pipes+inst+syms;
 }
 
@@ -425,6 +426,7 @@ document.getElementById('pinspect').addEventListener('click',e=>{
   if(open){ hooks.onOpenLogic(open); return; }
   const del=e.target.dataset.pdel; if(!del) return;
   plant.devices=plant.devices.filter(x=>x.id!==del);
+  plant.connections=(plant.connections||[]).filter(c=>c.from!==del&&c.to!==del);
   for(const d of plant.devices){
     if(d.from===del) d.from=undefined;
     if(d.to===del) d.to=undefined;
@@ -439,7 +441,8 @@ document.querySelectorAll('[data-padd]').forEach(b=>b.addEventListener('click',(
   const base={tank:'TK',valve:'LV',pump:'P',lt:'LT',ft:'FT',ls:'LSH',supply:'SUP',drain:'DR',plc:'PLC'}[t];
   let n=1; while(plant.devices.some(d=>d.id===base+'-'+n)) n++;
   const d={id:base+'-'+n,type:t,name:base+'-'+n,
-    x:90+((plant.devices.length*40)%300),y:90+((plant.devices.length%5)*70)};
+    x:90+((plant.devices.length*40)%300),y:90+((plant.devices.length%5)*70),
+    level:defaultLevel(t),px:9999};   // also lands in its Purdue lane
   if(t==='tank'){ d.level=0; d.level0=0; }
   if(t==='valve'){ d.maxFlow=5; d.posConst=0; }
   if(t==='pump'){ d.maxFlow=5; }
@@ -449,7 +452,7 @@ document.querySelectorAll('[data-padd]').forEach(b=>b.addEventListener('click',(
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();
 }));
 document.getElementById('pclear').addEventListener('click',()=>{
-  plant.devices=[]; pSel=null;
+  plant.devices=[]; plant.connections=[]; pSel=null;
   plantSave(); plantRebuild(); plantPaint(); renderInspector(); hooks.onChange();
 });
 
@@ -463,6 +466,19 @@ function plantExample(){
     {id:'LSH-101',type:'ls',name:'LSH-101',x:560,y:250,tank:'TK-101',sp:90,mode:'high',outTag:'bLevelHiHi'},
     {id:'LV-102',type:'valve',name:'LV-102',x:350,y:360,from:'TK-101',to:'DR-1',maxFlow:6,posConst:45},
     {id:'DR-1',type:'drain',name:'DRAIN',x:500,y:360},
+    // network side: the same plant seen from the Purdue view
+    {id:'SW-1',type:'switch',name:'SW-1',x:120,y:120,level:2,px:100},
+    {id:'HMI-1',type:'hmi',name:'HMI-1',x:120,y:120,level:2,px:0},
+    {id:'EWS-1',type:'ews',name:'EWS-1',x:120,y:120,level:2,px:200},
+    {id:'HIST-1',type:'historian',name:'HIST-1',x:120,y:120,level:3,px:0},
+    {id:'FW-1',type:'firewall',name:'FW-1',x:120,y:120,level:3.5,px:0},
+  ];
+  plant.connections=[
+    {from:'PLC-1',to:'SW-1',proto:'EtherNet/IP'},
+    {from:'HMI-1',to:'SW-1',proto:'Ethernet'},
+    {from:'EWS-1',to:'SW-1',proto:'Ethernet'},
+    {from:'SW-1',to:'HIST-1',proto:'OPC UA'},
+    {from:'HIST-1',to:'FW-1',proto:'OPC UA'},
   ];
 }
 document.getElementById('pex1').addEventListener('click',()=>{

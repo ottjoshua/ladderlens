@@ -4,6 +4,7 @@
 import {esc} from './engine.js';
 import {createLogicPanel, SCAN_MS} from './ladder.js';
 import {createPlant} from './plant.js';
+import {createPurdue} from './purdue.js';
 import {createProject} from './project.js';
 import {EX, EX_DEFAULTS} from './examples.js';
 
@@ -32,6 +33,7 @@ const plant=createPlant({
     else panel.run(true);
     renderTargets();
     plant.paint();     // readouts must reflect the (possibly different) active env
+    purdue.rebuild();  // the level view shows the same devices
   },
   onLoadPair:()=>{               // "level control plant" pairs with the ex1 logic
     const v=Object.assign({},EX_DEFAULTS.ex1);
@@ -41,6 +43,11 @@ const plant=createPlant({
     else{ project.data.sandbox={program:EX.ex1,inputs:v}; activate('sandbox',true); }
     plant.paint();
   },
+  onOpenLogic:id=>{ activate(id); setView('logic'); }
+});
+const purdue=createPurdue({
+  project,
+  onChange:()=>renderTargets(),
   onOpenLogic:id=>{ activate(id); setView('logic'); }
 });
 panel=createLogicPanel(document.getElementById('readwrap'),{
@@ -131,6 +138,7 @@ projfile.addEventListener('change',()=>{
     activate('sandbox');
     plant.paint();
     setView('pid');
+    purdue.rebuild();
   });
 });
 document.getElementById('exportproj').addEventListener('click',()=>{
@@ -147,11 +155,13 @@ document.getElementById('exportproj').addEventListener('click',()=>{
 /* ---- views: P&ID is home, Logic edits the active target ---- */
 function setView(v){
   document.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on',x.dataset.view===v));
-  const pid=v==='pid';
-  document.getElementById('readwrap').hidden=pid;
-  document.getElementById('plantwrap').hidden=!pid;
-  if(pid){ plant.rebuild(); plant.paint(); plant.inspector(); }
-  else panel.rerender();   // geometry measured while hidden is wrong — redo it visible
+  document.getElementById('readwrap').hidden = v!=='logic';
+  document.getElementById('plantwrap').hidden = v!=='pid';
+  document.getElementById('purduewrap').hidden = v!=='purdue';
+  // both canvases measure their container, so they must draw while visible
+  if(v==='pid'){ plant.rebuild(); plant.paint(); plant.inspector(); }
+  else if(v==='purdue'){ purdue.rebuild(); purdue.inspector(); }
+  else panel.rerender();
 }
 document.querySelectorAll('.mode').forEach(btn=>btn.addEventListener('click',()=>setView(btn.dataset.view)));
 
