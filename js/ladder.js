@@ -507,12 +507,30 @@ function reset(){
   repaint();
   hooks.plantPaint();
 }
-/* load a program with fresh values and a cold PLC — examples and file opens */
+/* load a program with fresh values and a cold PLC — examples, file opens,
+   and target switches */
 function coldStart(source,vals){
   srcEl.value=source;
   values=Object.assign({},vals||{});
   scanEnv={}; fbStates={};
   run(true);
+  if(modelStale){
+    // the incoming program doesn't parse — the panels must never keep showing
+    // a DIFFERENT program's rungs and inputs under this target's banner
+    viewModel=[]; inputsKey=null;
+    inEl.innerHTML='<span class="out" style="color:var(--dim)">none</span>';
+    outEl.innerHTML='';
+    canvasEl.innerHTML='<div class="lad"><div class="rnote">this program has a parse error — fix the text to see its rungs</div></div>';
+    cwarnEl.innerHTML='';
+  }
+}
+/* re-render the diagram from the current model — needed after the panel's
+   container becomes visible, because a display:none subtree measures as 0
+   (return path height, parallel-bar offsets) */
+function rerender(){
+  if(modelStale||!viewModel) return;
+  renderStructure(viewModel);
+  repaint();
 }
 function status(){ return {running:plcRunning,faulted,stale:modelStale,msg:lastMsg}; }
 
@@ -713,7 +731,7 @@ srcEl.addEventListener('drop',e=>{
   if(f){ e.preventDefault(); loadFile(f); }
 });
 
-return {run, repaint, scanTick, step, toggleRun, reset, coldStart, status,
+return {run, repaint, scanTick, step, toggleRun, reset, coldStart, rerender, status,
   isRunning:()=>plcRunning,
   env:()=>scanEnv,
   source:()=>srcEl.value,

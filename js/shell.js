@@ -31,13 +31,14 @@ const plant=createPlant({
     if(!store(activeTarget)) activate('sandbox');   // the active controller was deleted
     else panel.run(true);
     renderTargets();
+    plant.paint();     // readouts must reflect the (possibly different) active env
   },
   onLoadPair:()=>{               // "level control plant" pairs with the ex1 logic
     const v=Object.assign({},EX_DEFAULTS.ex1);
     delete v.rLevel_PV;          // the transmitter drives PV now
     const plc=store('PLC-1');
-    if(plc){ plc.program=EX.ex1; plc.inputs=v; project.save(); activate('PLC-1'); }
-    else{ project.data.sandbox={program:EX.ex1,inputs:v}; activate('sandbox'); }
+    if(plc){ plc.program=EX.ex1; plc.inputs=v; project.save(); activate('PLC-1',true); }
+    else{ project.data.sandbox={program:EX.ex1,inputs:v}; activate('sandbox',true); }
     plant.paint();
   },
   onOpenLogic:id=>{ activate(id); setView('logic'); }
@@ -60,11 +61,13 @@ let saveTimer=null;
 
 /* switch the panel to another program owner; the outgoing target keeps its
    latest input values. Switching is a cold start — a controller you open
-   boots like a controller powering up. */
-function activate(id){
+   boots like a controller powering up. Re-selecting the target that is
+   already active is a navigation no-op (a running controller must not be
+   power-cycled by a double-click); `force` reloads it anyway, for when its
+   stored program was just replaced. */
+function activate(id,force){
   if(!store(id)) id='sandbox';
-  // stash the outgoing target's input values — but only when actually leaving
-  // it; re-activating the current target is a plain reload from its store
+  if(booted&&id===activeTarget&&!force) return;
   if(booted&&id!==activeTarget&&store(activeTarget)) store(activeTarget).inputs=panel.values();
   activeTarget=id;
   const t=store(id);
@@ -148,6 +151,7 @@ function setView(v){
   document.getElementById('readwrap').hidden=pid;
   document.getElementById('plantwrap').hidden=!pid;
   if(pid){ plant.rebuild(); plant.paint(); plant.inspector(); }
+  else panel.rerender();   // geometry measured while hidden is wrong — redo it visible
 }
 document.querySelectorAll('.mode').forEach(btn=>btn.addEventListener('click',()=>setView(btn.dataset.view)));
 

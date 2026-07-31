@@ -16,19 +16,36 @@ const OLD_PLANT_STORE='ladderlens.plant.v1';   // pre-project releases stored th
 const TYPES=['tank','valve','pump','lt','supply','drain','plc'];
 
 /* localStorage and .llp files both arrive from outside the program —
-   malformed entries must never brick boot or import */
+   malformed entries must never brick boot or import. Ids are restricted to
+   the charset the UI itself generates: they are interpolated into CSS
+   selectors and data- attributes, so anything else is rejected outright. */
+function sanitizeInputs(obj){
+  const out={};
+  if(obj&&typeof obj==='object'&&!Array.isArray(obj))
+    for(const k of Object.keys(obj)){
+      const v=obj[k];
+      if(typeof v==='boolean') out[k]=v;
+      else{ const n=Number(v); if(Number.isFinite(n)) out[k]=n; }
+    }
+  return out;
+}
 function validDevices(list){
   if(!Array.isArray(list)) return [];
   const seen=new Set();
   return list.filter(d=>{
     if(!d||typeof d!=='object'||typeof d.id!=='string'||!TYPES.includes(d.type)||seen.has(d.id)) return false;
+    if(!/^[A-Za-z0-9_-]+$/.test(d.id)) return false;
+    if(d.type==='plc'&&d.id==='sandbox') d.id='PLC-sandbox';   // 'sandbox' names the free-standing slot
+    if(seen.has(d.id)) return false;
     seen.add(d.id);
     d.name=typeof d.name==='string'?d.name:d.id;
-    d.x=isFinite(d.x)?d.x:100; d.y=isFinite(d.y)?d.y:100;
-    for(const f of ['level','level0','maxFlow','posConst']) if(d[f]!==undefined&&!isFinite(d[f])) d[f]=0;
+    d.x=Number(d.x); if(!Number.isFinite(d.x)) d.x=100;
+    d.y=Number(d.y); if(!Number.isFinite(d.y)) d.y=100;
+    for(const f of ['level','level0','maxFlow','posConst'])
+      if(d[f]!==undefined){ d[f]=Number(d[f]); if(!Number.isFinite(d[f])) d[f]=0; }
     if(d.type==='plc'){
       d.program=typeof d.program==='string'?d.program:'';
-      d.inputs=(d.inputs&&typeof d.inputs==='object'&&!Array.isArray(d.inputs))?d.inputs:{};
+      d.inputs=sanitizeInputs(d.inputs);
     }
     return true;
   });
@@ -51,7 +68,7 @@ function normalize(p){
   p.devices=validDevices(p.devices);
   if(!p.sandbox||typeof p.sandbox!=='object') p.sandbox={program:'',inputs:{}};
   p.sandbox.program=typeof p.sandbox.program==='string'?p.sandbox.program:'';
-  p.sandbox.inputs=(p.sandbox.inputs&&typeof p.sandbox.inputs==='object'&&!Array.isArray(p.sandbox.inputs))?p.sandbox.inputs:{};
+  p.sandbox.inputs=sanitizeInputs(p.sandbox.inputs);
   return p;
 }
 
