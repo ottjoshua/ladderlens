@@ -115,34 +115,47 @@ function rebuild(){
   let cards='';
   for(const d of proj.devices){ const p=pos.get(d.id); if(p) cards+=card(d,p); }
   svg.innerHTML=lanes+links+cards+'<g class="pkts"></g>';
+  pathCache=new Map();      // the old path elements are gone with the old markup
   paintPackets();
+  renderFindings();         // the review follows the diagram, not the frame rate
 }
 
 /* packets ride the conduit path itself, so they follow whatever curve the
    layout produced — recomputed per frame from the traffic model */
+let pathCache=new Map();   // conduit key -> {el, len}, rebuilt with the diagram
 function paintPackets(){
   const svg=document.getElementById('qcanvas');
   const layer=svg&&svg.querySelector('.pkts');
   if(!layer||!net) return;
   const list=net.packets();
-  const cache=new Map();
-  const pathFor=k=>{
-    if(cache.has(k)) return cache.get(k);
-    const p=svg.querySelector(`[data-cpath="${CSS.escape(k)}"]`);
-    cache.set(k,p);
-    return p;
-  };
-  let html='';
+  const dots=layer.childNodes;
+  let n=0;
   for(const pk of list){
-    const path=pathFor(pk.key);
-    if(!path) continue;
+    let entry=pathCache.get(pk.key);
+    if(entry===undefined){
+      const el=svg.querySelector(`[data-cpath="${CSS.escape(pk.key)}"]`);
+      entry=el?{el,len:el.getTotalLength()}:null;   // length is fixed until the next rebuild
+      pathCache.set(pk.key,entry);
+    }
+    if(!entry) continue;
     let pt;
-    try{ pt=path.getPointAtLength(path.getTotalLength()*Math.max(0,Math.min(1,pk.t))); }
+    try{ pt=entry.el.getPointAtLength(entry.len*Math.max(0,Math.min(1,pk.t))); }
     catch(e){ continue; }
+    // reuse the circles: rebuilding the layer every frame thrashes the DOM
+    let c=dots[n];
+    if(!c){
+      c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      layer.appendChild(c);
+    }
     const cls='pkt '+(pk.dropped?'drop':pk.kind);
-    html+=`<circle class="${cls}" cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="${pk.kind==='rep'?3.4:3}"/>`;
+    if(c.getAttribute('class')!==cls) c.setAttribute('class',cls);
+    c.setAttribute('cx',pt.x.toFixed(1));
+    c.setAttribute('cy',pt.y.toFixed(1));
+    const r=pk.kind==='rep'?'3.4':'3';
+    if(c.getAttribute('r')!==r) c.setAttribute('r',r);
+    n++;
   }
-  layer.innerHTML=html;
+  while(dots.length>n) layer.removeChild(layer.lastChild);
 }
 
 const connByKey=k=>(proj.connections||[]).find(c=>c.from+'|'+c.to===k);
@@ -199,10 +212,10 @@ function renderConduitInspector(el){
     <div class="irow"><label>polls/s</label><input data-qcrate type="number" min="0" max="20" step="0.5"
       value="${Number.isFinite(c.rate)?c.rate:1}"></div>
     <div class="irow"><label>reads tag</label><input data-qctag value="${esc(c.tag||'')}" placeholder="a controller tag"></div>
-    <div class="irow"><label>traffic</label><span class="out">${
+    <div class="irow"><label>traffic</label><span class="out" data-qcsent>${
       polls ? (st?`${st.sent} sent${st.dropped?', '+st.dropped+' dropped':''}`:'starting…')
             : 'idle — no client on this conduit'}</span></div>
-    ${st&&st.last?`<div class="irow"><label>last</label><span class="out">${esc(st.last)}</span></div>`:''}
+    ${polls?`<div class="irow"><label>last</label><span class="out" data-qclast>${esc(st&&st.last?st.last:'—')}</span></div>`:''}
     ${fw?`<div class="irow"><span class="warnnote">${esc(fw.name)} denies ${esc(c.proto)} — packets stop there</span></div>`:''}
     <div class="irow"><button class="fbtn" data-qcdel>remove this conduit</button></div>`;
 }
@@ -375,8 +388,21 @@ let raf=null;
 function frame(){
   raf=null;
   const wrap=document.getElementById('purduewrap');
-  if(wrap&&!wrap.hidden){ paintPackets(); renderFindings(); }
+  if(wrap&&!wrap.hidden){ paintPackets(); refreshConduitStats(); }
   start();
+}
+/* the conduit inspector's counters are live numbers — update the two spans in
+   place rather than re-rendering the panel under the user's cursor */
+function refreshConduitStats(){
+  if(!selConn||!net) return;
+  const st=net.stats().get(selConn);
+  const sent=document.querySelector('[data-qcsent]');
+  const last=document.querySelector('[data-qclast]');
+  if(sent&&st){
+    const t=`${st.sent} sent${st.dropped?', '+st.dropped+' dropped':''}`;
+    if(sent.textContent!==t) sent.textContent=t;
+  }
+  if(last&&st&&last.textContent!==st.last) last.textContent=st.last;
 }
 function start(){
   if(raf!==null) return;

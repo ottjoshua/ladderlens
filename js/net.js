@@ -1,6 +1,7 @@
 /* Required Notice: Copyright (c) 2026 Joshua Ott — LadderLens (https://ladderlens.com)
    PolyForm Noncommercial 1.0.0 — commercial use requires a separate license. */
 
+import {esc} from './engine.js';
 import {LEVELS,defaultLevel,isNetType} from './project.js';
 
 /* ---------- the protocol layer ----------
@@ -26,7 +27,7 @@ const SPEED=1.6;           // conduit lengths per second
 const MAX_PACKETS=240;     // a hard ceiling: a silly rate must not melt the tab
 
 export function createNet(hooksIn={}){
-const hooks=Object.assign({project:null, env:()=>({})},hooksIn);
+const hooks=Object.assign({project:null, env:()=>({}), activeId:()=>null},hooksIn);
 const proj=hooks.project.data;
 
 let packets=[];        // {key, t (0..1), dir, kind, proto, label, dropped}
@@ -63,18 +64,24 @@ function blockedBy(c){
   return null;
 }
 
-/* the value a reply carries: the conduit's tag if it names one, else whatever
-   the controller is publishing that a human would look at first */
-function readValue(c){
+const show=v=>typeof v==='boolean' ? (v?'TRUE':'FALSE')
+  : (Number.isFinite(+v) ? (+v).toFixed(1) : String(v));
+
+/* The value a reply carries. Only one controller's program is executing at a
+   time — the one open in the Logic view — so a conduit that terminates at a
+   different controller has no live values to report and must say so rather
+   than quote another device's numbers. */
+function readValue(c,dst){
+  if(!dst||dst.type!=='plc') return c.tag||'traffic';   // a hop, not an endpoint read
+  if(hooks.activeId()!==dst.id)
+    return (c.tag||'read')+' · open '+dst.name+' to see live values';
   const env=hooks.env()||{};
-  if(c.tag&&Object.prototype.hasOwnProperty.call(env,c.tag)){
-    const v=env[c.tag];
-    return c.tag+'='+(typeof v==='boolean'?(v?'TRUE':'FALSE'):(+v).toFixed(1));
-  }
+  if(c.tag)
+    return Object.prototype.hasOwnProperty.call(env,c.tag)
+      ? c.tag+'='+show(env[c.tag])
+      : c.tag+' — not a tag in this program';
   const first=Object.keys(env)[0];
-  if(first===undefined) return 'read';
-  const v=env[first];
-  return first+'='+(typeof v==='boolean'?(v?'TRUE':'FALSE'):(+v).toFixed(1));
+  return first===undefined ? 'read' : first+'='+show(env[first]);
 }
 
 function tick(dt){
@@ -112,9 +119,12 @@ function tick(dt){
     if(p.t>=1||p.t<=0){
       if(p.kind==='req'){
         const c=(proj.connections||[]).find(x=>key(x)===p.key);
-        if(c&&packets.length+next.length<MAX_PACKETS){
+        // next[] IS the surviving population — counting packets[] too would
+        // double-count and silently halve the real ceiling
+        if(c&&next.length<MAX_PACKETS){
+          const pd=pollDirection(c);
           const st=stats.get(p.key)||{sent:0,dropped:0,last:''};
-          st.last=readValue(c); stats.set(p.key,st);
+          st.last=readValue(c,pd&&pd.dst); stats.set(p.key,st);
           next.push({key:p.key, t:p.dir>0?1:0, dir:-p.dir, kind:'rep',
             proto:p.proto, label:st.last, dropped:false});
         }
@@ -140,7 +150,7 @@ function findings(){
     const allow=Array.isArray(d.allow)?d.allow:DMZ_SAFE;
     const control=allow.filter(p=>!DMZ_SAFE.includes(p));
     if(control.length)
-      out.push(`<b>${d.name}</b> permits ${control.map(p=>'<b>'+p+'</b>').join(', ')} across it. `
+      out.push(`<b>${esc(d.name)}</b> permits ${control.map(p=>'<b>'+esc(p)+'</b>').join(', ')} across it. `
         +`Control protocols were never designed to be exposed — the DMZ exists so they stop here.`);
   }
   for(const c of proj.connections||[]){
@@ -150,18 +160,21 @@ function findings(){
     const gap=Math.abs(la-lb);
     const crossesDMZ=(la<3.5&&lb>3.5)||(lb<3.5&&la>3.5);
     const viaFirewall=a.type==='firewall'||b.type==='firewall';
+    const pair=`<b>${esc(a.name)} ↔ ${esc(b.name)}</b>`;
     if(crossesDMZ&&!viaFirewall)
-      out.push(`<b>${a.name} ↔ ${b.name}</b> carries OT traffic straight past the DMZ. `
+      out.push(`${pair} carries OT traffic straight past the DMZ. `
         +`Enterprise systems should reach plant data through a broker in the DMZ, not through the plant.`);
     else if(gap>1&&!viaFirewall)
-      out.push(`<b>${a.name} ↔ ${b.name}</b> skips ${gap===1.5?'a level':'levels'} `
-        +`(${levelName(la)} to ${levelName(lb)}) with nothing in between to control it.`);
+      out.push(`${pair} skips ${gap>2?'levels':'a level'} `
+        +`(${esc(levelName(la))} to ${esc(levelName(lb))}) with nothing in between to control it.`);
     if(viaFirewall){
       const fw=a.type==='firewall'?a:b;
       const allow=Array.isArray(fw.allow)?fw.allow:DMZ_SAFE;
-      if(!DMZ_SAFE.includes(c.proto)&&allow.includes(c.proto))
-        out.push(`<b>${a.name} ↔ ${b.name}</b> actually carries <b>${c.proto}</b> through `
-          +`<b>${fw.name}</b> — the rule above is not theoretical, this link is using it.`);
+      // only claim a link is USING the rule when it actually carries traffic
+      // the firewall lets through — otherwise the policy finding above stands alone
+      if(!DMZ_SAFE.includes(c.proto)&&allow.includes(c.proto)&&pollDirection(c)&&!blockedBy(c))
+        out.push(`${pair} actually carries <b>${esc(c.proto)}</b> through `
+          +`<b>${esc(fw.name)}</b> — the rule above is not theoretical, this link is using it.`);
     }
   }
   return out;

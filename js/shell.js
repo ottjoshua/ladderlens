@@ -46,7 +46,9 @@ const plant=createPlant({
   },
   onOpenLogic:id=>{ activate(id); setView('logic'); }
 });
-const net=createNet({project, env:()=>panel?panel.env():{}});
+const net=createNet({project,
+  env:()=>panel?panel.env():{},
+  activeId:()=>activeTarget});      // only the open controller has live values
 const purdue=createPurdue({
   project, net,
   onChange:()=>{ renderTargets(); purdue.findings(); },
@@ -107,13 +109,25 @@ function renderHeader(s){
   msgEl.textContent = s.msg;
 }
 runBtn.addEventListener('click',()=>panel.toggleRun());
-document.getElementById('stepbtn').addEventListener('click',()=>panel.step());
-document.getElementById('resetbtn').addEventListener('click',()=>panel.reset());
+document.getElementById('stepbtn').addEventListener('click',()=>{
+  const s=panel.status();
+  if(s.running||s.faulted||s.stale) return;
+  panel.step();
+  net.tick(SCAN_MS);      // one scan of traffic too, so stepping stays coherent
+});
+document.getElementById('resetbtn').addEventListener('click',()=>{
+  panel.reset();
+  net.reset();            // a cold restart clears the wire as well as the logic
+  purdue.rebuild();
+});
 
 /* the scan genuinely pauses while the tab is hidden (browsers throttle hidden
    timers anyway); on return, the gap is not counted into dt */
+/* traffic runs exactly when the scan does: a halted or stale controller is not
+   answering anyone, so its conduits must fall silent too */
+const scanLive=()=>{ const s=panel.status(); return s.running&&!s.faulted&&!s.stale; };
 setInterval(()=>{
-  if(!panel.isRunning()||document.hidden) return;
+  if(document.hidden||!scanLive()) return;
   panel.scanTick();
   net.tick(SCAN_MS);      // conduits carry traffic on the same clock as the plant
 }, SCAN_MS);
@@ -140,6 +154,7 @@ projfile.addEventListener('change',()=>{
     try{ project.fromLLP(t); }
     catch(e){ alert(e.message); return; }
     plant.rebuild(); plant.inspector();
+    net.reset();                            // the previous project's traffic is not this one's
     activeTarget='sandbox'; booted=false;   // never stash old values into the new project
     activate('sandbox');
     plant.paint();
