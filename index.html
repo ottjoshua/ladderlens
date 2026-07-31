@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<!--
+  Structured Text <-> Ladder Diagram tool
+  Copyright (c) 2026 Joshua Ott. All rights reserved.
+  Unauthorized copying, modification, or redistribution is prohibited.
+-->
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Convert between IEC 61131-3 Structured Text and Ladder Diagram in the browser, with live evaluation — watch rungs energize as inputs change. Offline, single file, no dependencies.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314171a'/%3E%3Cpath d='M6 4v24M26 4v24' stroke='%23c8963e' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M6 12h20M6 22h20' stroke='%235fd38d' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<title>LadderLens — Structured Text ⇄ Ladder Diagram</title>
+<style>
+:root{
+  --bg:#14171a; --panel:#1b2126; --panel2:#212930;
+  --rail:#c8963e; --rail-dim:#6d5327;
+  --wire:#6c7a85; --hot:#5fd38d; --hot-dim:#2e6b48;
+  --blk:#1e2a31; --blk-edge:#3d7a6b; --blk-txt:#9fe3cb;
+  --ink:#c9d1d6; --dim:#6b7780; --warn:#e0864a;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"DejaVu Sans Mono",monospace;
+  --ui:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:14px}
+header{padding:18px 22px 14px;border-bottom:1px solid #262e35;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-family:var(--mono)}
+h1 span{color:var(--rail)}
+.sub{color:var(--dim);font-size:12px;font-family:var(--mono)}
+.wrap{display:grid;grid-template-columns:minmax(340px,1fr) minmax(420px,1.35fr);gap:0;min-height:calc(100vh - 58px)}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.pane{padding:16px 20px;min-width:0}
+.pane+.pane{border-left:1px solid #262e35}
+@media(max-width:900px){.pane+.pane{border-left:0;border-top:1px solid #262e35}}
+.lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+textarea{width:100%;height:290px;background:var(--panel);color:var(--ink);border:1px solid #2b343c;border-radius:5px;
+  font-family:var(--mono);font-size:12.5px;line-height:1.65;padding:12px;resize:vertical;tab-size:2}
+textarea:focus{outline:2px solid var(--rail);outline-offset:-1px}
+.bar{display:flex;gap:8px;margin:10px 0 0;flex-wrap:wrap}
+button{background:var(--panel2);color:var(--ink);border:1px solid #333e47;border-radius:4px;padding:6px 11px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;cursor:pointer}
+button:hover{border-color:var(--rail);color:#fff}
+button:focus-visible{outline:2px solid var(--rail);outline-offset:2px}
+.vars{margin-top:18px}
+.vgrid{display:grid;grid-template-columns:1fr auto;gap:5px 10px;align-items:center}
+.vgrid label{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.vgrid input[type=number]{width:88px;background:var(--panel);border:1px solid #2b343c;color:var(--hot);
+  font-family:var(--mono);font-size:12px;padding:4px 6px;border-radius:3px;text-align:right}
+.vgrid input:focus{outline:1px solid var(--rail)}
+.tog{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.tog input{accent-color:var(--hot);width:15px;height:15px}
+.out{font-family:var(--mono);font-size:12px;color:var(--hot);text-align:right;padding-right:2px}
+.err{background:#2a1a17;border:1px solid #6b3428;color:#e8a08a;padding:9px 11px;border-radius:4px;
+  font-family:var(--mono);font-size:11.5px;margin-top:10px;white-space:pre-wrap}
+/* ladder canvas */
+.canvas{position:relative;background:var(--panel);border:1px solid #2b343c;border-radius:5px;padding:14px 30px 30px 62px;overflow-x:auto}
+.canvas::before,.canvas::after{content:"";position:absolute;top:8px;bottom:22px;width:3px;background:var(--rail);border-radius:2px}
+.canvas::before{left:44px}.canvas::after{right:14px}
+.retpath{position:absolute;left:0;top:0;width:44px;pointer-events:none}
+.retlbl{position:absolute;left:56px;bottom:7px;font-family:var(--mono);font-size:10.5px;color:var(--dim);white-space:nowrap}
+.retlbl b{color:var(--rail);font-weight:500}
+.rung{position:relative;padding:14px 0 16px}
+.rung+.rung{border-top:1px dashed #2b343c}
+.rnote{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.08em;margin-bottom:9px}
+.rnote b{color:var(--rail);font-weight:600}
+.row{display:flex;align-items:center;gap:0;min-width:min-content}
+.w{height:2px;background:var(--wire);flex:0 0 22px}
+.w.f{flex:1 1 22px;min-width:22px}
+.w.on{background:var(--hot);box-shadow:0 0 5px var(--hot-dim)}
+.contact{position:relative;display:flex;flex-direction:column;align-items:center;flex:0 0 auto;padding:0 4px}
+.ctag{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap;margin-bottom:4px}
+.contact.on .ctag{color:var(--hot)}
+.cglyph{width:30px;height:26px}
+.blk{flex:0 0 auto;background:var(--blk);border:1px solid var(--blk-edge);border-radius:6px;padding:6px 10px 7px;margin:0 2px}
+.blk.on{border-color:var(--hot);box-shadow:0 0 0 1px var(--hot-dim)}
+.bname{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--blk-txt);letter-spacing:.1em;text-align:center;margin-bottom:4px}
+.bio{font-family:var(--mono);font-size:10.5px;color:#7fa89a;white-space:nowrap;line-height:1.5}
+.bio i{color:var(--dim);font-style:normal;display:inline-block;width:30px}
+.coil{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;padding:0 4px}
+.ctag2{font-family:var(--mono);font-size:10.5px;color:var(--ink);white-space:nowrap;margin-bottom:4px}
+.coil.on .ctag2{color:var(--hot)}
+.val{font-family:var(--mono);font-size:10px;color:var(--warn);margin-top:4px;white-space:nowrap}
+.cpat{margin-top:12px;border-top:1px dashed #4a3c2e;padding-top:11px;display:flex;flex-direction:column;gap:9px}
+.crung{display:flex;align-items:center;gap:0;font-family:var(--mono);font-size:11px;flex-wrap:nowrap;min-width:0}
+.cl{flex:0 0 auto;width:18px;color:var(--warn);font-weight:600}
+.crail{flex:0 0 3px;align-self:stretch;background:var(--rail-dim);border-radius:2px;min-height:24px}
+.ccontact{flex:0 0 auto;color:#d8c3ac;padding:3px 8px;border:1px solid #4a3c2e;border-radius:3px;
+  background:#1d1712;white-space:nowrap;margin-left:2px}
+.cwire{flex:0 0 14px;height:2px;background:#4a3c2e}
+.cblk{flex:1 1 auto;color:var(--blk-txt);padding:4px 9px;border:1px solid var(--blk-edge);border-radius:4px;
+  background:var(--blk);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ccoil{flex:0 0 auto;color:#d8c3ac;padding:0 2px;letter-spacing:2px}
+.cnote{flex:0 0 auto;color:var(--dim);font-size:10px;margin-left:12px;white-space:nowrap}
+@media(max-width:1200px){.cnote{display:none}}
+.noladder{border:1px dashed var(--warn);border-radius:6px;padding:10px 13px;background:#241d18}
+.nlhead{font-family:var(--mono);font-size:12px;color:var(--warn);letter-spacing:.04em;margin-bottom:6px}
+.nlbody{font-family:var(--mono);font-size:11px;line-height:1.75;color:#a8917c}
+.nlbody b{color:var(--warn);font-weight:500}
+.nlbody em{color:#d8c3ac;font-style:italic}
+.modes{display:flex;gap:0;border:1px solid #333e47;border-radius:5px;overflow:hidden}
+.mode{background:transparent;border:0;border-radius:0;padding:6px 13px;color:var(--dim);font-size:11px}
+.mode+.mode{border-left:1px solid #333e47}
+.mode.on{background:var(--rail);color:#14171a;font-weight:600}
+.mode:hover:not(.on){color:var(--ink)}
+.re{background:var(--panel);border:1px solid #2b343c;border-radius:6px;padding:11px 13px;margin-bottom:11px}
+.rehead{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.rehead .n{font-family:var(--mono);font-size:11px;color:var(--rail);font-weight:600;letter-spacing:.08em}
+.rehead .sp{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid #333e47;
+  border-radius:4px;padding:4px 6px}
+.chip.k{border-color:var(--blk-edge);background:var(--blk)}
+.chip select,.chip input{background:#151a1e;border:1px solid #2b343c;color:var(--ink);
+  font-family:var(--mono);font-size:11px;padding:3px 5px;border-radius:3px}
+.chip input{width:104px}
+.chip select{cursor:pointer}
+.chip .x{background:transparent;border:0;color:var(--dim);padding:0 2px;font-size:14px;line-height:1;cursor:pointer}
+.chip .x:hover{color:var(--warn)}
+.mini{background:transparent;border:1px dashed #3a444d;color:var(--dim);padding:4px 8px;font-size:10.5px}
+.mini:hover{border-color:var(--rail);color:var(--rail)}
+.tgt{display:flex;align-items:center;gap:7px;margin-top:9px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.tgt input{background:#151a1e;border:1px solid #2b343c;color:var(--hot);font-family:var(--mono);
+  font-size:11.5px;padding:4px 7px;border-radius:3px;width:170px}
+.gen{background:var(--panel);border:1px solid #2b343c;border-radius:5px;padding:13px;margin:0;
+  font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink);white-space:pre-wrap;min-height:250px}
+.gen .kw{color:var(--rail)}
+.gen .cm{color:var(--dim)}
+.warnbox{background:#241d18;border:1px dashed var(--warn);border-radius:5px;padding:9px 12px;margin-top:11px;
+  font-family:var(--mono);font-size:11px;line-height:1.7;color:#c9a888}
+.warnbox b{color:var(--warn);font-weight:500}
+.legend{margin-top:14px;font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.9}
+.legend b{color:var(--ink);font-weight:500}
+.scan{display:flex;align-items:center;gap:9px;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--hot);animation:p 1s steps(1) infinite}
+@keyframes p{0%,49%{opacity:1}50%,100%{opacity:.15}}
+@media(prefers-reduced-motion:reduce){.dot{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ladder<span>Lens</span></h1>
+  <div class="modes">
+    <button class="mode on" data-mode="read">Text → Ladder</button>
+    <button class="mode" data-mode="build">Ladder → Text</button>
+  </div>
+  <div class="sub">Structured Text ⇄ Ladder Diagram · IEC 61131-3 &nbsp;·&nbsp; <span style="color:var(--dim)">by Joshua Ott</span></div>
+</header>
+
+<div class="wrap" id="readwrap">
+  <section class="pane">
+    <p class="lbl">Structured text</p>
+    <textarea id="src" spellcheck="false"></textarea>
+    <div class="bar">
+      <button id="ex1">level controller</button>
+      <button id="ex2">level controller with sign error</button>
+      <button id="ex3">Interlock</button>
+      <button id="ex4">CASE</button>
+      <button id="ex5">FOR loop</button>
+    </div>
+    <div id="err"></div>
+
+    <div class="vars">
+      <p class="lbl">Inputs</p>
+      <div class="vgrid" id="inputs"></div>
+      <p class="lbl" style="margin-top:16px">Outputs this scan</p>
+      <div class="vgrid" id="outputs"></div>
+    </div>
+  </section>
+
+  <section class="pane">
+    <p class="lbl">Ladder diagram</p>
+    <div class="canvas" id="canvas"></div>
+    <div class="scan"><span class="dot"></span><span id="scanmsg">every rung re-evaluates each scan</span></div>
+    <div class="legend">
+      <b>[ ]</b> normally open — passes power when TRUE &nbsp;·&nbsp; <b>[/]</b> normally closed — passes power when FALSE<br>
+      <b>green</b> = energized this scan &nbsp;·&nbsp; arithmetic uses function blocks, not operators<br>
+      an <b>IF/ELSE</b> in text becomes two rungs gated by the same variable and its complement
+    </div>
+  </section>
+</div>
+
+<div class="wrap" id="buildwrap" hidden>
+  <section class="pane">
+    <p class="lbl">Rungs</p>
+    <div id="rungedit"></div>
+    <div class="bar"><button id="addrung">+ rung</button><button id="seed">Load level controller rungs</button><button id="clearall">Clear</button></div>
+  </section>
+  <section class="pane">
+    <p class="lbl">Generated structured text</p>
+    <pre id="gen" class="gen"></pre>
+    <div id="genwarn"></div>
+    <div class="legend" style="margin-top:16px">
+      Two rungs writing the same tag through a variable and its complement collapse into one
+      <b>IF / ELSE</b>. A single gated rung cannot — when it goes false the tag holds its old value,
+      which is the mistake people make converting ladder to text by hand.
+    </div>
+  </section>
+</div>
+
+<script>
+/* (c) 2026 Joshua Ott. All rights reserved. */
+"use strict";
+
+/* ---------- examples ---------- */
+const EX = {
+ex1:`(* Proportional level controller *)
+rLC_Error := rLC_SP - rLevel_PV;
+
+IF bLC_ManMode THEN
+    rValve_OP := rLC_ManOP;
+ELSE
+    rValve_OP := rLC_Bias + (rLC_Kp * rLC_Error);
+END_IF
+
+rValve_OP := LIMIT(0.0, rValve_OP, 100.0);`,
+
+ex2:`(* Same controller, one operand pair swapped.
+   Compare rung 1 against the correct version. *)
+rLC_Error := rLevel_PV - rLC_SP;
+
+IF bLC_ManMode THEN
+    rValve_OP := rLC_ManOP;
+ELSE
+    rValve_OP := rLC_Bias + (rLC_Kp * rLC_Error);
+END_IF
+
+rValve_OP := LIMIT(0.0, rValve_OP, 100.0);`,
+
+ex4:`(* CASE — each branch becomes its own rung,
+   gated by an equality comparison on the selector *)
+CASE iMode OF
+  0: rValveCmd := 0.0;
+  1: rValveCmd := rManualCmd;
+  2: rValveCmd := rAutoCmd * rTrim;
+ELSE
+  rValveCmd := rSafeCmd;
+END_CASE
+
+rValveCmd := LIMIT(0.0, rValveCmd, 100.0);`,
+
+ex5:`(* FOR — this one has no rung equivalent.
+   Ladder would need a counter across scans instead. *)
+rTotal := 0.0;
+
+FOR iIndex := 1 TO 4 DO
+    rTotal := rTotal + rSample;
+END_FOR
+
+rAverage := rTotal / 4.0;`,
+
+ex3:`(* Pump permissive with a low-level interlock *)
+rMargin := rLevel - rTripPoint;
+
+IF bLowLevelTrip THEN
+    rPumpSpeed := 0.0;
+ELSE
+    rPumpSpeed := rSpeedRef * rEnableScale;
+END_IF
+
+rPumpSpeed := LIMIT(0.0, rPumpSpeed, 100.0);`
+};
+
+/* ---------- tokenizer ---------- */
+function lex(src){
+  src = src.replace(/\(\*[\s\S]*?\*\)/g,' ').replace(/\/\/[^\n]*/g,' ');
+  const t=[], re=/([A-Za-z_]\w*|\d+\.\d+|\d+|:=|<=|>=|<>|[-+*/()<>=,;:])|(\S)/g;
+  let m;
+  while((m=re.exec(src))!==null){
+    if(m[2]!==undefined) throw new Error(`unexpected character "${m[2]}"`);
+    t.push(m[1]);
+  }
+  return t;
+}
+
+/* ---------- parser ---------- */
+const KW = new Set(['IF','THEN','ELSIF','ELSE','END_IF','AND','OR','NOT','TRUE','FALSE',
+                    'CASE','OF','END_CASE','FOR','TO','BY','DO','END_FOR','WHILE','END_WHILE']);
+const FUNCS = new Set(['LIMIT','MIN','MAX','ABS','SQRT','SEL']);
+
+function parse(tokens){
+  let i=0;
+  const peek=()=>tokens[i];
+  const up=()=> (tokens[i]||'').toUpperCase();
+  const eat=(v)=>{
+    if(v && (tokens[i]||'').toUpperCase()!==v.toUpperCase())
+      throw new Error(`expected ${v}, found "${tokens[i]||'end of input'}"`);
+    return tokens[i++];
+  };
+
+  function stmts(stop){
+    const out=[];
+    while(i<tokens.length && !stop.has(up())) out.push(stmt());
+    return out;
+  }
+  function stmt(){
+    if(up()==='IF') return ifStmt();
+    if(up()==='CASE') return caseStmt();
+    if(up()==='FOR') return forStmt();
+    if(up()==='WHILE') return whileStmt();
+    const target=eat();
+    if(!/^[A-Za-z_]\w*$/.test(target)) throw new Error(`"${target}" is not a valid assignment target`);
+    eat(':=');
+    const expr=orExpr();
+    if(peek()===';') i++;
+    return {k:'assign',target,expr};
+  }
+  function ifStmt(){
+    eat('IF');
+    const cond=orExpr();
+    eat('THEN');
+    const then=stmts(new Set(['ELSIF','ELSE','END_IF']));
+    let alt=[], elifs=[];
+    while(up()==='ELSIF'){ eat('ELSIF'); const c=orExpr(); eat('THEN');
+      elifs.push({cond:c,body:stmts(new Set(['ELSIF','ELSE','END_IF']))}); }
+    if(up()==='ELSE'){ eat('ELSE'); alt=stmts(new Set(['END_IF'])); }
+    eat('END_IF');
+    if(peek()===';') i++;
+    return {k:'if',cond,then,elifs,alt};
+  }
+  function caseStmt(){
+    eat('CASE');
+    const sel=orExpr();
+    eat('OF');
+    const branches=[]; let alt=[];
+    const STOP=new Set(['ELSE','END_CASE']);
+    // a branch ends at ELSE, END_CASE, or the start of the next label (token followed by ':')
+    const atLabel=()=> tokens[i+1]===':' && tokens[i]!==undefined;
+    const branchBody=()=>{
+      const out=[];
+      while(i<tokens.length && !STOP.has(up()) && !atLabel()) out.push(stmt());
+      return out;
+    };
+    while(i<tokens.length && !STOP.has(up())){
+      const labels=[orExpr()];
+      while(peek()===','){ eat(','); labels.push(orExpr()); }
+      eat(':');
+      branches.push({labels,body:branchBody()});
+    }
+    if(up()==='ELSE'){ eat('ELSE'); alt=stmts(new Set(['END_CASE'])); }
+    eat('END_CASE');
+    if(peek()===';') i++;
+    return {k:'case',sel,branches,alt};
+  }
+  function forStmt(){
+    eat('FOR');
+    const v=eat(); eat(':='); const from=orExpr(); eat('TO'); const to=orExpr();
+    let by=null;
+    if(up()==='BY'){ eat('BY'); by=orExpr(); }
+    eat('DO');
+    const body=stmts(new Set(['END_FOR']));
+    eat('END_FOR');
+    if(peek()===';') i++;
+    return {k:'for',v,from,to,by,body};
+  }
+  function whileStmt(){
+    eat('WHILE');
+    const cond=orExpr(); eat('DO');
+    const body=stmts(new Set(['END_WHILE']));
+    eat('END_WHILE');
+    if(peek()===';') i++;
+    return {k:'while',cond,body};
+  }
+  function orExpr(){ let l=andExpr();
+    while(up()==='OR'){ eat('OR'); l={k:'bin',op:'OR',l,r:andExpr()}; } return l; }
+  function andExpr(){ let l=cmpExpr();
+    while(up()==='AND'){ eat('AND'); l={k:'bin',op:'AND',l,r:cmpExpr()}; } return l; }
+  function cmpExpr(){ let l=add();
+    while(['<','>','<=','>=','=','<>'].includes(peek())){ const op=eat(); l={k:'bin',op,l,r:add()}; }
+    return l; }
+  function add(){ let l=mul();
+    while(peek()==='+'||peek()==='-'){ const op=eat(); l={k:'bin',op,l,r:mul()}; } return l; }
+  function mul(){ let l=unary();
+    while(peek()==='*'||peek()==='/'){ const op=eat(); l={k:'bin',op,l,r:unary()}; } return l; }
+  function unary(){
+    if(up()==='NOT'){ eat('NOT'); return {k:'not',e:unary()}; }
+    if(peek()==='-'){ eat('-'); return {k:'bin',op:'-',l:{k:'num',v:0},r:unary()}; }
+    return prim();
+  }
+  function prim(){
+    if(peek()==='('){ eat('('); const e=orExpr(); eat(')'); return e; }
+    const tk=eat();
+    if(tk===undefined) throw new Error('unexpected end of input');
+    if(/^\d/.test(tk)) return {k:'num',v:parseFloat(tk)};
+    const U=tk.toUpperCase();
+    if(U==='TRUE') return {k:'bool',v:true};
+    if(U==='FALSE') return {k:'bool',v:false};
+    if(peek()==='('){
+      eat('('); const args=[];
+      if(peek()!==')'){ args.push(orExpr()); while(peek()===','){ eat(','); args.push(orExpr()); } }
+      eat(')');
+      return {k:'call',name:U,args};
+    }
+    return {k:'var',name:tk};
+  }
+  const prog=stmts(new Set());
+  return prog;
+}
+
+/* ---------- flatten to rungs ---------- */
+const OPBLOCK={'+':'ADD','-':'SUB','*':'MUL','/':'DIV'};
+
+function collectTargets(list){
+  const out=[];
+  for(const s of list||[]){
+    if(s.k==='assign') out.push(s.target);
+    else if(s.k==='if'){ out.push(...collectTargets(s.then)); s.elifs.forEach(e=>out.push(...collectTargets(e.body))); out.push(...collectTargets(s.alt)); }
+    else if(s.k==='case'){ s.branches.forEach(b=>out.push(...collectTargets(b.body))); out.push(...collectTargets(s.alt)); }
+    else if(s.k==='for'||s.k==='while') out.push(...collectTargets(s.body));
+  }
+  return out;
+}
+
+function flatten(prog){
+  const rungs=[];
+  function walk(list,guards){
+    for(const s of list){
+      if(s.k==='assign') rungs.push({target:s.target,expr:s.expr,guards:guards.slice()});
+      else if(s.k==='if'){
+        walk(s.then, guards.concat([{cond:s.cond,neg:false}]));
+        let acc=[{cond:s.cond,neg:true}];
+        for(const e of s.elifs){
+          walk(e.body, guards.concat(acc,[{cond:e.cond,neg:false}]));
+          acc=acc.concat([{cond:e.cond,neg:true}]);
+        }
+        if(s.alt.length) walk(s.alt, guards.concat(acc));
+      }
+      else if(s.k==='case'){
+        let acc=[];
+        for(const b of s.branches){
+          const c = b.labels.length===1
+            ? {k:'bin',op:'=',l:s.sel,r:b.labels[0]}
+            : b.labels.slice(1).reduce((a,L)=>({k:'bin',op:'OR',l:a,r:{k:'bin',op:'=',l:s.sel,r:L}}),
+                                        {k:'bin',op:'=',l:s.sel,r:b.labels[0]});
+          walk(b.body, guards.concat(acc,[{cond:c,neg:false}]));
+          acc=acc.concat([{cond:c,neg:true}]);
+        }
+        if(s.alt.length) walk(s.alt, guards.concat(acc));
+      }
+      else if(s.k==='for' || s.k==='while'){
+        rungs.push({kind:'loop', loop:s, guards:guards.slice(),
+                    targets:[...new Set(collectTargets(s.body))]});
+      }
+    }
+  }
+  walk(prog,[]);
+  return rungs;
+}
+
+/* build ordered block list from an expression tree */
+function blocks(expr){
+  const out=[];
+  function txt(e){
+    switch(e.k){
+      case 'num': return String(e.v);
+      case 'bool': return e.v?'TRUE':'FALSE';
+      case 'var': return e.name;
+      case 'call': return e.name+'(…)';
+      case 'not': return 'NOT '+txt(e.e);
+      case 'bin': return '('+txt(e.l)+' '+e.op+' '+txt(e.r)+')';
+    }
+  }
+  function walk(e){
+    if(e.k==='bin' && OPBLOCK[e.op]){
+      walk(e.l); walk(e.r);
+      out.push({name:OPBLOCK[e.op],ins:[['IN1',txt(e.l)],['IN2',txt(e.r)]]});
+      return;
+    }
+    if(e.k==='call'){
+      e.args.forEach(walk);
+      const names = e.name==='LIMIT'?['MN','IN','MX']:e.args.map((_,n)=>'IN'+(n+1));
+      out.push({name:e.name,ins:e.args.map((a,n)=>[names[n]||('IN'+(n+1)),txt(a)])});
+      return;
+    }
+  }
+  walk(expr);
+  if(!out.length) out.push({name:'MOVE',ins:[['IN',txt(expr)]]});
+  return out;
+}
+
+/* ---------- variable discovery ---------- */
+function scan(prog){
+  const assigned=new Set(), read=new Set(), bools=new Set();
+  function ex(e,isBool){
+    if(!e) return;
+    switch(e.k){
+      case 'var': read.add(e.name); if(isBool) bools.add(e.name); break;
+      case 'not': ex(e.e,true); break;
+      case 'call': e.args.forEach(a=>ex(a,false)); break;
+      case 'bin':
+        if(e.op==='AND'||e.op==='OR'){ ex(e.l,true); ex(e.r,true); }
+        else { ex(e.l,false); ex(e.r,false); }
+        break;
+    }
+  }
+  (function walk(list){
+    for(const s of list){
+      if(s.k==='assign'){ assigned.add(s.target); ex(s.expr,false); }
+      else if(s.k==='if'){ ex(s.cond,true); walk(s.then); s.elifs.forEach(e=>{ex(e.cond,true);walk(e.body);}); walk(s.alt); }
+      else if(s.k==='case'){ ex(s.sel,false); s.branches.forEach(b=>{b.labels.forEach(L=>ex(L,false)); walk(b.body);}); walk(s.alt); }
+      else if(s.k==='for'){ assigned.add(s.v); ex(s.from,false); ex(s.to,false); ex(s.by,false); walk(s.body); }
+      else if(s.k==='while'){ ex(s.cond,true); walk(s.body); }
+    }
+  })(prog);
+  const inputs=[...read].filter(v=>!assigned.has(v));
+  return {inputs,outputs:[...assigned],bools};
+}
+
+/* ---------- evaluator ---------- */
+const truthy=v=>v===true||(typeof v==='number'&&v!==0);
+
+/* one expression evaluator for both the scan and the rung display.
+   strict=true throws on unknown functions; strict=false (display) treats them as 0 */
+function evalExpr(e,env,strict){
+  if(!e) return 0;
+  switch(e.k){
+    case 'num': return e.v;
+    case 'bool': return e.v;
+    case 'var': return env[e.name]!==undefined?env[e.name]:0;
+    case 'not': return !truthy(evalExpr(e.e,env,strict));
+    case 'call':{
+      const a=e.args.map(x=>evalExpr(x,env,strict));
+      switch(e.name){
+        case 'LIMIT': return Math.min(Math.max(a[1],a[0]),a[2]);
+        case 'MIN': return Math.min(...a);
+        case 'MAX': return Math.max(...a);
+        case 'ABS': return Math.abs(a[0]);
+        case 'SQRT': return Math.sqrt(a[0]);
+        case 'SEL': return truthy(a[0])?a[2]:a[1];
+        default:
+          if(strict) throw new Error(`unknown function "${e.name}" — known: LIMIT, MIN, MAX, ABS, SQRT, SEL`);
+          return 0;
+      }
+    }
+    case 'bin':{
+      const L=evalExpr(e.l,env,strict), R=evalExpr(e.r,env,strict);
+      switch(e.op){
+        case '+':return L+R; case '-':return L-R; case '*':return L*R;
+        case '/':return R===0?0:L/R;
+        case '>':return L>R; case '<':return L<R; case '>=':return L>=R; case '<=':return L<=R;
+        case '=':return L===R; case '<>':return L!==R;
+        case 'AND':return truthy(L)&&truthy(R); case 'OR':return truthy(L)||truthy(R);
+      }
+      return 0;
+    }
+  }
+  return 0;
+}
+
+function evaluate(prog,env){
+  const trace=[];
+  const val=e=>evalExpr(e,env,true);
+  let budget=20000;
+  (function walk(list){
+    for(const s of list){
+      if(s.k==='assign'){ const v=val(s.expr); env[s.target]=v; trace.push({target:s.target,value:v,live:true}); }
+      else if(s.k==='if'){
+        if(truthy(val(s.cond))) walk(s.then);
+        else {
+          let done=false;
+          for(const e of s.elifs){ if(!done && truthy(val(e.cond))){ walk(e.body); done=true; } }
+          if(!done) walk(s.alt);
+        }
+      }
+      else if(s.k==='case'){
+        const sv=val(s.sel); let done=false;
+        for(const b of s.branches){
+          if(!done && b.labels.some(L=>val(L)===sv)){ walk(b.body); done=true; }
+        }
+        if(!done) walk(s.alt);
+      }
+      else if(s.k==='for'){
+        const a=val(s.from), b=val(s.to), st=s.by?val(s.by):1;
+        if(st!==0){
+          for(let n=a; st>0? n<=b : n>=b; n+=st){
+            if(--budget<0) throw new Error('scan budget exceeded — a real PLC watchdog would fault here');
+            env[s.v]=n; walk(s.body);
+          }
+        }
+      }
+      else if(s.k==='while'){
+        while(truthy(val(s.cond))){
+          if(--budget<0) throw new Error('scan budget exceeded — a real PLC watchdog would fault here');
+          walk(s.body);
+        }
+      }
+    }
+  })(prog);
+  return {env,trace};
+}
+function guardState(guards,env){
+  return guards.map(g=>{ const base=truthy(evalExpr(g.cond,env,false)); return g.neg?!base:base; });
+}
+function exprText(e){
+  if(!e) return '';
+  switch(e.k){
+    case 'num': return String(e.v);
+    case 'bool': return e.v?'TRUE':'FALSE';
+    case 'var': return e.name;
+    case 'not': return 'NOT '+exprText(e.e);
+    case 'call': return e.name+'()';
+    case 'bin': return exprText(e.l)+' '+e.op+' '+exprText(e.r);
+  }
+  return '?';
+}
+function guardLabel(g){
+  if(g.cond.k==='var') return g.cond.name;
+  if(g.cond.k==='not'&&g.cond.e.k==='var') return g.cond.e.name;
+  return exprText(g.cond);
+}
+function guardNeg(g){
+  const inner = g.cond.k==='not';
+  return g.neg !== inner;
+}
+
+/* ---------- rendering ---------- */
+const NO=`<svg class="cglyph" viewBox="0 0 30 26"><line x1="0" y1="13" x2="10" y2="13" stroke="CUR" stroke-width="2"/><line x1="10" y1="4" x2="10" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="4" x2="20" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="13" x2="30" y2="13" stroke="CUR" stroke-width="2"/></svg>`;
+const NC=`<svg class="cglyph" viewBox="0 0 30 26"><line x1="0" y1="13" x2="10" y2="13" stroke="CUR" stroke-width="2"/><line x1="10" y1="4" x2="10" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="4" x2="20" y2="22" stroke="CUR" stroke-width="2.2"/><line x1="10" y1="22" x2="20" y2="4" stroke="CUR" stroke-width="2.2"/><line x1="20" y1="13" x2="30" y2="13" stroke="CUR" stroke-width="2"/></svg>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=v=>typeof v==='boolean'?(v?'TRUE':'FALSE'):(Number.isInteger(v)?v.toFixed(1):v.toFixed(2));
+
+function cRung(letter, contact, block, note){
+  return `<div class="crung">
+    <span class="cl">${letter}</span>
+    <span class="crail"></span>
+    <span class="ccontact">${contact}</span>
+    <span class="cwire"></span>
+    <span class="cblk">${block}</span>
+    <span class="cwire"></span>
+    <span class="ccoil">( )</span>
+    <span class="cnote">${note}</span>
+  </div>`;
+}
+
+function render(rungs,env){
+  const c=document.getElementById('canvas');
+  if(!rungs.length){ c.innerHTML='<div class="rnote">no assignments found</div>'; return; }
+  c.innerHTML = rungs.map((r,n)=>{
+    if(r.kind==='loop'){
+      const s=r.loop, isFor=s.k==='for';
+      const head = isFor
+        ? `FOR ${esc(s.v)} := ${esc(exprText(s.from))} TO ${esc(exprText(s.to))}${s.by?' BY '+esc(exprText(s.by)):''}`
+        : `WHILE ${esc(exprText(s.cond))}`;
+
+      // count iterations + estimate timing when the bounds are literals
+      let iters=null;
+      if(isFor){
+        const a=Number(exprText(s.from)), b=Number(exprText(s.to)),
+              st=s.by?Number(exprText(s.by)):1;
+        if(!isNaN(a)&&!isNaN(b)&&!isNaN(st)&&st!==0) iters=Math.floor((b-a)/st)+1;
+      }
+      const ms = iters!==null ? iters*100 : null;
+
+      const banner = isFor
+        ? `Structured text runs this ${iters!==null?iters+'&times;':'loop'} inside <b>one</b> scan.`+
+          ` The ladder equivalent below runs <b>once per scan</b>${iters!==null?` across ${iters} scans`:''},`+
+          ` so the result lands${ms!==null?` about ${ms} ms`:''} later. Same answer, different timing.`
+        : `A WHILE loop has no fixed trip count, so it cannot be unrolled.`+
+          ` The nearest ladder form is a self-gating counter that advances one step per scan &mdash;`+
+          ` and an <b>unbounded</b> ladder loop is a watchdog fault waiting to happen, which is why`+
+          ` raw WHILE is rare in real ladder.`;
+
+      // the three-rung counter pattern (FOR only)
+      const idx=esc(s.v), body=r.targets.map(esc).join(', ')||'…';
+      const st = s.by?exprText(s.by):'1';
+      const patt = isFor ? `
+        <div class="cpat">
+          ${cRung('A', `[ ${idx} &lt; ${esc(exprText(s.to))} ]`,
+                  `ADD ${idx} , ${esc(st)} &rarr; ${idx}`, 'advance the counter')}
+          ${cRung('B', `[ ${idx} &lt; ${esc(exprText(s.to))} ]`,
+                  `one iteration &rarr; ${body}`, 'do one pass of the loop body')}
+          ${cRung('C', `[ ${idx} &ge; ${esc(exprText(s.to))} ]`,
+                  `finish &nbsp;·&nbsp; MOVE ${esc(exprText(s.from))} &rarr; ${idx}`, 'done — reset for next time')}
+        </div>` : '';
+
+      return `<div class="rung">
+        <div class="rnote"><b>Rung ${n+1}</b> — ${isFor?'rebuilt as a counter across scans':'no bounded ladder form'}</div>
+        <div class="noladder">
+          <div class="nlhead">${head}</div>
+          <div class="nlbody">${banner}</div>
+          ${patt}
+        </div></div>`;
+    }
+    const states=guardState(r.guards,env);
+    const live=states.every(Boolean);
+    const gh = r.guards.map((g,gi)=>{
+      const on=states[gi], col=on?'#5fd38d':'#6c7a85';
+      const glyph=(guardNeg(g)?NC:NO).replace(/CUR/g,col);
+      return `<div class="contact ${on?'on':''}"><div class="ctag">${esc(guardLabel(g))}</div>${glyph}</div>`
+           + `<div class="w ${on?'on':''}"></div>`;
+    }).join('');
+    const bs = blocks(r.expr).map(b=>
+      `<div class="blk ${live?'on':''}"><div class="bname">${esc(b.name)}</div>`+
+      b.ins.map(([k,v])=>`<div class="bio"><i>${esc(k)}</i>${esc(v)}</div>`).join('')+
+      `<div class="bio"><i>OUT</i>→</div></div><div class="w ${live?'on':''}"></div>`
+    ).join('');
+    const v = env[r.target];
+    const desc = r.guards.length
+      ? `gated by ${r.guards.map(g=>(guardNeg(g)?'NOT ':'')+guardLabel(g)).join(' AND ')}`
+      : 'unconditional — runs every scan';
+    return `<div class="rung">
+      <div class="rnote"><b>Rung ${n+1}</b> — ${esc(desc)}</div>
+      <div class="row">
+        <div class="w ${live||r.guards.length===0?'on':''}"></div>
+        ${gh}${bs}
+        <div class="w f ${live?'on':''}"></div>
+        <div class="coil ${live?'on':''}">
+          <div class="ctag2">${esc(r.target)}</div>
+          <div class="val">${live&&v!==undefined?fmt(v):'not written'}</div>
+        </div>
+        <div class="w ${live?'on':''}"></div>
+      </div></div>`;
+  }).join('');
+  drawReturn(c);
+}
+
+/* full return path: exits below the last rung, runs up the left gutter,
+   and re-enters pointing down the left power rail */
+function drawReturn(c){
+  const H = c.scrollHeight;
+  const top = 10, bot = H - 20, x = 16, rail = 44;
+  const d = `M ${rail} ${bot} L ${x+10} ${bot} Q ${x} ${bot} ${x} ${bot-12}`
+          + ` L ${x} ${top+12} Q ${x} ${top} ${x+10} ${top} L ${rail} ${top}`;
+  const svg = `<svg class="retpath" height="${H}" viewBox="0 0 44 ${H}" aria-hidden="true">
+      <path d="${d}" fill="none" stroke="var(--rail)" stroke-width="1.5"
+            stroke-dasharray="5 4" stroke-linecap="round"/>
+      <path d="M ${rail-5} ${top+9} L ${rail} ${top+17} L ${rail+5} ${top+9}"
+            fill="none" stroke="var(--rail)" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="retlbl">back to rung 1 · <b>T#100ms</b> · 10 scans per second, forever</div>`;
+  c.insertAdjacentHTML('beforeend', svg);
+}
+
+/* ---------- app ---------- */
+const srcEl=document.getElementById('src'), errEl=document.getElementById('err');
+const inEl=document.getElementById('inputs'), outEl=document.getElementById('outputs');
+let values={};
+let inputsKey=null;
+
+/* one delegated listener — the panel is NOT rebuilt while you type,
+   so number fields keep focus between keystrokes */
+inEl.addEventListener('input',e=>{
+  const el=e.target, n=el.dataset.v;
+  if(!n) return;
+  if(el.type==='checkbox') values[n]=el.checked;
+  else{ const x=parseFloat(el.value); values[n]= isNaN(x)?0:x; }
+  run();
+});
+
+function refreshInputs(inputs,bools,force){
+  const key=inputs.map(v=>v+(bools.has(v)?':b':':n')).join('|');
+  if(force || key!==inputsKey){
+    inputsKey=key;
+    inEl.innerHTML = inputs.length? inputs.map(v=>bools.has(v)
+        ? `<label class="tog"><input type="checkbox" data-v="${esc(v)}" ${values[v]?'checked':''}>${esc(v)}</label><span class="out" data-o="${esc(v)}">${values[v]?'TRUE':'FALSE'}</span>`
+        : `<label for="i_${esc(v)}">${esc(v)}</label><input type="number" step="any" id="i_${esc(v)}" data-v="${esc(v)}" value="${values[v]}">`
+      ).join('') : '<span class="out" style="color:var(--dim)">none</span>';
+  } else {
+    inputs.forEach(v=>{
+      if(!bools.has(v)) return;
+      const sp=inEl.querySelector(`[data-o="${v}"]`);
+      if(sp) sp.textContent = values[v]?'TRUE':'FALSE';
+    });
+  }
+}
+
+function run(forceInputs){
+  errEl.innerHTML='';
+  let prog;
+  try{ prog=parse(lex(srcEl.value)); }
+  catch(e){ errEl.innerHTML=`<div class="err">Parse error: ${esc(e.message)}</div>`; return; }
+
+  const {inputs,outputs,bools}=scan(prog);
+  inputs.forEach(v=>{ if(values[v]===undefined) values[v]= bools.has(v)?false:0; });
+
+  refreshInputs(inputs,bools,forceInputs===true);
+
+  const env=Object.assign({},values);
+  try{ evaluate(prog,env); }
+  catch(e){ errEl.innerHTML=`<div class="err">Evaluation error: ${esc(e.message)}</div>`; }
+
+  outEl.innerHTML = outputs.map(v=>
+    `<label>${esc(v)}</label><span class="out">${env[v]!==undefined?fmt(env[v]):'—'}</span>`).join('');
+
+  const flat=flatten(prog);
+  render(flat,env);
+  document.getElementById('scanmsg').textContent =
+    `${flat.length} rungs · re-evaluated every scan (100 ms = 10×/sec)`;
+}
+
+srcEl.addEventListener('input',()=>run());
+const EX_DEFAULTS={
+  ex1:{rLC_SP:60,rLevel_PV:50,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false},
+  ex2:{rLC_SP:60,rLevel_PV:40,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false},
+  ex3:{rLevel:20,rTripPoint:15,rSpeedRef:80,rEnableScale:1,bLowLevelTrip:false},
+  ex4:{iMode:1,rManualCmd:40,rAutoCmd:55,rTrim:1,rSafeCmd:0},
+  ex5:{rSample:25}
+};
+['ex1','ex2','ex3','ex4','ex5'].forEach(id=>document.getElementById(id)
+  .addEventListener('click',()=>{ srcEl.value=EX[id]; values=Object.assign({},EX_DEFAULTS[id]||{}); run(true); }));
+
+srcEl.value=EX.ex1;
+values={rLC_SP:60,rLevel_PV:50,rLC_Kp:1.5,rLC_Bias:50,rLC_ManOP:0,bLC_ManMode:false};
+run();
+
+/* ================= LADDER -> TEXT ================= */
+const ARITY={MOVE:1,ADD:2,SUB:2,MUL:2,DIV:2,LIMIT:3,MIN:2,MAX:2,ABS:1};
+const PREV='@prev';
+let rungs=[];
+
+function seedRungs(){
+  rungs=[
+    {contacts:[],blocks:[{op:'SUB',ins:['rLC_SP','rLevel_PV']}],target:'rLC_Error'},
+    {contacts:[{tag:'bLC_ManMode',nc:false}],blocks:[{op:'MOVE',ins:['rLC_ManOP']}],target:'rValve_OP'},
+    {contacts:[{tag:'bLC_ManMode',nc:true}],
+     blocks:[{op:'MUL',ins:['rLC_Kp','rLC_Error']},{op:'ADD',ins:['rLC_Bias',PREV]}],
+     target:'rValve_OP'},
+    {contacts:[],blocks:[{op:'LIMIT',ins:['0.0','rValve_OP','100.0']}],target:'rValve_OP'}
+  ];
+}
+const PIN={LIMIT:['MN','IN','MX'],MOVE:['IN'],ABS:['IN']};
+const pinName=(op,n)=> (PIN[op]&&PIN[op][n]) || ('IN'+(n+1));
+
+function drawBuilder(){
+  const host=document.getElementById('rungedit');
+  host.innerHTML = rungs.map(function(r,i){ return ''+
+    '<div class="re" data-r="'+i+'">'+
+      '<div class="rehead"><span class="n">RUNG '+(i+1)+'</span><span class="sp"></span>'+
+        '<button class="mini" data-act="up"'+(i===0?' disabled':'')+'>up</button>'+
+        '<button class="mini" data-act="down"'+(i===rungs.length-1?' disabled':'')+'>down</button>'+
+        '<button class="mini" data-act="delrung">remove</button></div>'+
+      '<div class="chips">'+
+        r.contacts.map(function(c,ci){ return ''+
+          '<span class="chip"><select data-act="nc" data-c="'+ci+'">'+
+            '<option value="0"'+(c.nc?'':' selected')+'>[ ]</option>'+
+            '<option value="1"'+(c.nc?' selected':'')+'>[/]</option></select>'+
+          '<input data-act="ctag" data-c="'+ci+'" value="'+esc(c.tag)+'" placeholder="tag">'+
+          '<button class="x" data-act="delc" data-c="'+ci+'">&times;</button></span>'; }).join('')+
+        '<button class="mini" data-act="addc">+ contact</button>'+
+        r.blocks.map(function(b,bi){ return ''+
+          '<span class="chip k"><select data-act="op" data-b="'+bi+'">'+
+            Object.keys(ARITY).map(function(o){return '<option'+(o===b.op?' selected':'')+'>'+o+'</option>';}).join('')+
+          '</select>'+
+          b.ins.map(function(v,ii){ return '<input data-act="in" data-b="'+bi+'" data-i="'+ii+'" value="'+
+            esc(v)+'" placeholder="'+pinName(b.op,ii)+'" title="'+pinName(b.op,ii)+'">'; }).join('')+
+          '<button class="x" data-act="delb" data-b="'+bi+'">&times;</button></span>'; }).join('')+
+        '<button class="mini" data-act="addb">+ block</button>'+
+      '</div>'+
+      '<div class="tgt">writes &rarr; <input data-act="target" value="'+esc(r.target)+'" placeholder="output tag"></div>'+
+    '</div>'; }).join('') || '<div class="rnote">no rungs yet</div>';
+  generate();
+}
+
+function chainExpr(blocks){
+  let prev=null, danglingPrev=false;
+  for(const b of blocks){
+    const a=b.ins.map(function(v){
+      if(v===PREV && prev===null){ danglingPrev=true; return '0'; }
+      return v===PREV ? prev : (v||'0');
+    });
+    switch(b.op){
+      case 'MOVE': prev=a[0]; break;
+      case 'ADD': prev='('+a[0]+' + '+a[1]+')'; break;
+      case 'SUB': prev='('+a[0]+' - '+a[1]+')'; break;
+      case 'MUL': prev='('+a[0]+' * '+a[1]+')'; break;
+      case 'DIV': prev='('+a[0]+' / '+a[1]+')'; break;
+      default: prev=b.op+'('+a.join(', ')+')';
+    }
+  }
+  return {expr: prev===null?'0':prev, dangling:danglingPrev};
+}
+function chainText(blocks){ return chainExpr(blocks).expr; }
+const condOf=function(r){ return r.contacts.length
+  ? r.contacts.map(function(c){return (c.nc?'NOT ':'')+(c.tag||'?');}).join(' AND ') : null; };
+
+function generate(){
+  const out=[], warns=[], used=new Set();
+  for(let i=0;i<rungs.length;i++){
+    if(used.has(i)) continue;
+    const r=rungs[i], cond=condOf(r), ce=chainExpr(r.blocks), expr=ce.expr;
+    if(ce.dangling) warns.push('Rung '+(i+1)+' uses <b>@prev</b> in its first block, but nothing comes before it — treated as 0.');
+    if(!r.target){ warns.push('Rung '+(i+1)+' has no output tag, so nothing is written.'); continue; }
+    if(!cond){ out.push(r.target+' := '+expr+';'); continue; }
+    let pair=-1;
+    if(r.contacts.length===1){
+      for(let j=i+1;j<rungs.length;j++){
+        const s=rungs[j];
+        if(used.has(j)) continue;
+        if(s.target===r.target && s.contacts.length===1 &&
+           s.contacts[0].tag===r.contacts[0].tag && s.contacts[0].nc!==r.contacts[0].nc){ pair=j; break; }
+      }
+    }
+    if(pair>=0){
+      used.add(pair);
+      const s=rungs[pair], tag=r.contacts[0].tag||'?';
+      const A=r.contacts[0].nc? chainText(s.blocks) : expr;
+      const B=r.contacts[0].nc? expr : chainText(s.blocks);
+      out.push('IF '+tag+' THEN\n    '+r.target+' := '+A+';\nELSE\n    '+r.target+' := '+B+';\nEND_IF');
+    } else {
+      out.push('IF '+cond+' THEN\n    '+r.target+' := '+expr+';\nEND_IF');
+      const elsewhere=rungs.some(function(s,j){ return j!==i && s.target===r.target && !condOf(s)
+        && !s.blocks.some(function(b){ return b.ins.indexOf(r.target)>=0; }); });
+      if(!elsewhere) warns.push('Rung '+(i+1)+' writes <b>'+esc(r.target)+'</b> only while its contact passes power. '+
+        'When it goes false nothing writes the tag, so it holds its last value. '+
+        'If the ladder intended the output to drop out, the text needs an ELSE.');
+    }
+  }
+  const code=out.join('\n\n')||'(* add a rung to generate code *)';
+  document.getElementById('gen').innerHTML = esc(code)
+    .replace(/\b(IF|THEN|ELSE|END_IF|NOT|AND|OR|LIMIT|MIN|MAX|ABS)\b/g,'<span class="kw">$1</span>')
+    .replace(/(\(\*[\s\S]*?\*\))/g,'<span class="cm">$1</span>');
+  document.getElementById('genwarn').innerHTML = warns.length
+    ? '<div class="warnbox">'+warns.map(function(w){return '&middot; '+w;}).join('<br>')+'</div>' : '';
+}
+
+document.getElementById('rungedit').addEventListener('input',function(e){
+  const t=e.target, re=t.closest('.re'); if(!re) return;
+  const r=rungs[+re.dataset.r], a=t.dataset.act;
+  if(a==='ctag') r.contacts[+t.dataset.c].tag=t.value.trim();
+  else if(a==='nc') r.contacts[+t.dataset.c].nc = t.value==='1';
+  else if(a==='in') r.blocks[+t.dataset.b].ins[+t.dataset.i]=t.value.trim();
+  else if(a==='target') r.target=t.value.trim();
+  else if(a==='op'){ const b=r.blocks[+t.dataset.b]; b.op=t.value;
+    const n=ARITY[b.op]; b.ins=Array.from({length:n},function(_,k){return b.ins[k]||'';});
+    drawBuilder(); return; }
+  generate();
+});
+document.getElementById('rungedit').addEventListener('change',function(e){
+  if(e.target.tagName==='SELECT') e.target.dispatchEvent(new Event('input',{bubbles:true}));
+});
+document.getElementById('rungedit').addEventListener('click',function(e){
+  const t=e.target.closest('button'); if(!t) return;
+  const re=t.closest('.re'); if(!re) return;
+  const i=+re.dataset.r, r=rungs[i], a=t.dataset.act;
+  if(a==='addc') r.contacts.push({tag:'',nc:false});
+  else if(a==='delc') r.contacts.splice(+t.dataset.c,1);
+  else if(a==='addb') r.blocks.push({op:'MOVE',ins:['']});
+  else if(a==='delb') r.blocks.splice(+t.dataset.b,1);
+  else if(a==='delrung') rungs.splice(i,1);
+  else if(a==='up'&&i>0) rungs.splice(i-1,0,rungs.splice(i,1)[0]);
+  else if(a==='down'&&i<rungs.length-1) rungs.splice(i+1,0,rungs.splice(i,1)[0]);
+  else return;
+  drawBuilder();
+});
+document.getElementById('addrung').addEventListener('click',function(){
+  rungs.push({contacts:[],blocks:[{op:'MOVE',ins:['']}],target:''}); drawBuilder(); });
+document.getElementById('seed').addEventListener('click',function(){ seedRungs(); drawBuilder(); });
+document.getElementById('clearall').addEventListener('click',function(){ rungs=[]; drawBuilder(); });
+
+document.querySelectorAll('.mode').forEach(function(btn){ btn.addEventListener('click',function(){
+  document.querySelectorAll('.mode').forEach(function(b){ b.classList.toggle('on',b===btn); });
+  const build = btn.dataset.mode==='build';
+  document.getElementById('readwrap').hidden = build;
+  document.getElementById('buildwrap').hidden = !build;
+}); });
+
+seedRungs();
+drawBuilder();
+
+</script>
+</body>
+</html>
