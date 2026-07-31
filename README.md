@@ -1,13 +1,16 @@
 # LadderLens
 
-**Structured Text ⇄ Ladder Diagram**
+**An OT workspace in the browser: P&ID, controllers, and live logic**
 
-A single-file, offline browser tool that converts between IEC 61131-3
-Structured Text and Ladder Diagram — and runs it on a real simulated
-scan cycle, so you can watch rungs energize, seal-in circuits latch,
-and timers count as inputs change.
+Draw a plant on a P&ID canvas, put a controller on it, open the
+controller and write its IEC 61131-3 logic as Structured Text or
+Ladder Diagram — two live projections of the same program, running on
+a real simulated scan cycle against a plant that physically responds.
+Watch rungs energize, seal-in circuits latch, timers count, and tanks
+fill because your logic told a valve to open.
 
-**[Open the live tool →](https://ladderlens.com/)**
+**[Open the live tool →](https://ladderlens.com/)** ·
+[standalone logic editor](https://ladderlens.com/logic.html)
 
 ---
 
@@ -19,19 +22,23 @@ like it: training happens on expensive vendor benches, expensive
 operator-training simulators, or not at all.
 
 LadderLens is being built toward that gap, one working release at a
-time. Today it has two views: **Logic**, where IEC 61131-3 Structured
-Text and Ladder Diagram are two live, editable projections of the same
-program running on a real scan cycle — and **Plant**, a P&ID canvas
-where tanks, valves, pumps, and transmitters bind to the same tags and
-the process physically responds to your logic.
+time. The workspace opens on the **P&ID view** — the plant is the
+home screen, and everything on it is a device in one project model:
+tanks, valves, pumps, transmitters, and **controllers**. Open a
+controller (double-click it) and the **Logic view** shows the program
+that controller runs, as IEC 61131-3 Structured Text and Ladder
+Diagram — two live, editable projections of the same program on a
+real scan cycle. The whole workspace saves in the browser and travels
+as a single **`.llp` project file** — build a plant with a broken
+controller, export it, and hand it to a class to fix.
 
 On the roadmap: Function Block Diagram as a third lens on the same
 program, vendor dialect detection and translation for the text side
-(IEC / Siemens SCL / Rockwell), a richer ISA-5.1 symbol library, a
-Purdue Model view of the plant's network levels, and simulated
-industrial protocols (Modbus, DNP3, EtherNet/IP) with visible traffic
-between devices — the editor becoming one panel of a full OT
-workspace.
+(IEC / Siemens SCL / Rockwell), device catalogs (vendor/model), a
+richer ISA-5.1 symbol library, a Purdue Model view that places these
+same devices in their network levels with firewalls on the conduits,
+and simulated industrial protocols (Modbus, DNP3, EtherNet/IP) with
+visible traffic between devices.
 
 ## What it does
 
@@ -78,20 +85,29 @@ back into a single `IF / ELSE`. A tag written by only one gated rung
 raises a warning — the output would hold a stale value when the contact
 opens, the classic mistake when converting ladder to text by hand.
 
-**A plant to control.** The **Plant** view is a P&ID canvas wired to the
-same tags the logic uses: drag out tanks, control valves, pumps, level
-transmitters, supply and drain; bind them to tags; and the process runs
-on the same scan — transmitters publish levels before each scan, the
-logic computes, actuators move flow, tanks integrate it. Load the
-**level control plant** and watch the controller settle the tank at its
-setpoint; then load the **sign error** logic against the same plant and
-watch positive feedback run the tank into visible **OVERFLOW**. Pipes
-animate where liquid actually flows. The plant is saved in your browser;
-the `.st` file carries only the logic.
+**A plant to control.** The **P&ID** view is the home screen — a
+canvas wired to the same tags the logic uses: drag out tanks, control
+valves, pumps, level transmitters, supply and drain; bind them to
+tags; and the process runs on the same scan — transmitters publish
+levels before each scan, the logic computes, actuators move flow,
+tanks integrate it. Load the **level control plant** and watch the
+controller settle the tank at its setpoint; then load the **sign
+error** logic against the same plant and watch positive feedback run
+the tank into visible **OVERFLOW**. Pipes animate where liquid
+actually flows.
 
-**Files.** Open a `.st` file (or drop one onto the editor) and export
-your program back to `.st` when you're done. Plain text either way —
-nothing leaves the browser.
+**Controllers are devices.** Add a controller from the palette, select
+it and press **open logic** (or double-click it) — the Logic view
+edits the program that controller runs. Target chips in the Logic view
+switch between any controller's program and a free-standing
+**sandbox**, each keeping its own program and input values.
+
+**Files.** The whole workspace — devices, controller programs, input
+values — exports as one readable **`.llp` project file** (versioned
+JSON) and imports back, so plants can be shared, versioned in git, or
+handed out as lab exercises. Individual programs still open from and
+export to plain **`.st`** files. Nothing leaves the browser either
+way.
 
 **Loops.** `FOR` and `WHILE` cannot be drawn as rungs (a rung is one
 power path evaluated once per scan). The tool explains why and renders
@@ -108,10 +124,13 @@ concrete and interactive.
 
 ## Running it
 
-No build, no dependencies, no server. Either:
+No build step, no dependencies — plain HTML, CSS, and native ES
+modules. Either:
 
 - Open the hosted link above, or
-- Download `index.html` and open it in any modern browser.
+- Clone the repo and serve it with any static file server
+  (`python -m http.server`), then open `index.html`. Browsers block
+  ES modules over `file://`, so a local server is needed.
 
 Everything runs client-side. Nothing is uploaded.
 
