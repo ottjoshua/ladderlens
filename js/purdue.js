@@ -19,8 +19,10 @@ let sel=null, drag=null;
 
 const byId=id=>proj.devices.find(d=>d.id===id);
 /* a device created on the P&ID has never declared a level — it sits at its
-   type's default until someone drags it somewhere else */
-const levelOf=d=>LEVELS.some(L=>L.id===d.level)?d.level:defaultLevel(d.type);
+   type's default until someone drags it somewhere else. This is purdueLevel:
+   `level` belongs to the process model (how full a tank is). */
+const levelOf=d=>LEVELS.some(L=>L.id===d.purdueLevel)?d.purdueLevel:defaultLevel(d.type);
+const setLevel=(d,lv)=>{ if(LEVELS.some(L=>L.id===lv)) d.purdueLevel=lv; };
 const laneY=lv=>{ const i=LEVELS.findIndex(l=>l.id===lv); return PAD+(i<0?LEVELS.length-1:i)*LANE_H; };
 const lvAtY=y=>{ const i=Math.max(0,Math.min(LEVELS.length-1,Math.floor((y-PAD)/LANE_H))); return LEVELS[i].id; };
 
@@ -65,8 +67,15 @@ function rebuild(){
   const pos=lanePositions();
   let maxX=LABEL_W+GAP;
   pos.forEach(p=>{ if(p.x+CARD_W/2>maxX) maxX=p.x+CARD_W/2; });
-  const W=Math.max(svg.clientWidth, maxX+GAP), H=PAD*2+LEVELS.length*LANE_H;
+  // the canvas is drawn at exactly its own coordinate size and the workbench
+  // scrolls when the diagram is wider — 1:1 means pointer coordinates need no
+  // aspect correction, which letterboxed scaling would otherwise silently add
+  const host=svg.parentElement;
+  const avail=Math.max((host?host.clientWidth:0)-2, 360);
+  const W=Math.max(avail, maxX+GAP), H=PAD*2+LEVELS.length*LANE_H;
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.setAttribute('preserveAspectRatio','none');
+  svg.style.width=W+'px';
   svg.style.height=H+'px';
 
   let lanes='';
@@ -83,10 +92,19 @@ function rebuild(){
   for(const c of proj.connections||[]){
     const a=pos.get(c.from), b=pos.get(c.to);
     if(!a||!b) continue;
-    const mid=(a.y+b.y)/2;
-    const d=`M ${a.x} ${a.y} C ${a.x} ${mid}, ${b.x} ${mid}, ${b.x} ${b.y}`;
+    let d, ly;
+    if(Math.abs(a.y-b.y)<1){
+      // same lane: bow the conduit below the card row so it stays visible
+      const dip=a.y+CARD_H/2+16;
+      d=`M ${a.x} ${a.y+CARD_H/2} C ${a.x} ${dip}, ${b.x} ${dip}, ${b.x} ${b.y+CARD_H/2}`;
+      ly=dip+8;
+    } else {
+      const mid=(a.y+b.y)/2;
+      d=`M ${a.x} ${a.y} C ${a.x} ${mid}, ${b.x} ${mid}, ${b.x} ${b.y}`;
+      ly=mid-3;
+    }
     links+=`<path class="conduit" data-cid="${esc(c.from)}|${esc(c.to)}" d="${d}"/>`
-      +`<text class="clbl" x="${(a.x+b.x)/2}" y="${mid-3}" text-anchor="middle" font-size="8.5">${esc(c.proto)}</text>`;
+      +`<text class="clbl" x="${(a.x+b.x)/2}" y="${ly}" text-anchor="middle" font-size="8.5">${esc(c.proto)}</text>`;
   }
   let cards='';
   for(const d of proj.devices){ const p=pos.get(d.id); if(p) cards+=card(d,p); }
@@ -141,7 +159,10 @@ if(svgEl){
     const g=e.target.closest('.pcard');
     if(!g){ sel=null; rebuild(); renderInspector(); return; }
     sel=g.dataset.nid;
-    drag={id:sel,moved:false};
+    drag={id:sel,moved:false,pid:e.pointerId};
+    // capture on the canvas, not the card: rebuild() replaces the card element
+    // mid-drag, and a capture held by a removed node stops delivering events
+    try{ svgEl.setPointerCapture(e.pointerId); }catch(err){}
     rebuild(); renderInspector();
   });
   svgEl.addEventListener('pointermove',e=>{
@@ -151,11 +172,19 @@ if(svgEl){
     const lv=lvAtY(pt.y);
     const px=pt.x;
     if(levelOf(d)!==lv||Math.abs((d.px||0)-px)>8){
-      d.level=lv; d.px=px; drag.moved=true;
+      setLevel(d,lv); d.px=px; drag.moved=true;
       rebuild(); renderInspector();
     }
   });
-  svgEl.addEventListener('pointerup',()=>{ if(drag&&drag.moved){ hooks.project.save(); hooks.onChange(); } drag=null; });
+  const endDrag=()=>{
+    if(!drag) return;
+    if(drag.moved){ hooks.project.save(); hooks.onChange(); }
+    try{ svgEl.releasePointerCapture(drag.pid); }catch(err){}
+    drag=null;
+  };
+  svgEl.addEventListener('pointerup',endDrag);
+  svgEl.addEventListener('pointercancel',endDrag);
+  window.addEventListener('pointerup',endDrag);   // release outside the canvas still ends it
   svgEl.addEventListener('dblclick',e=>{
     const g=e.target.closest('.pcard'); if(!g) return;
     const d=byId(g.dataset.nid);
@@ -168,8 +197,7 @@ if(inspEl){
   inspEl.addEventListener('change',e=>{
     const d=sel?byId(sel):null; if(!d) return;
     if(e.target.hasAttribute('data-qlevel')){
-      const lv=Number(e.target.value);
-      if(LEVELS.some(L=>L.id===lv)) d.level=lv;
+      setLevel(d,Number(e.target.value));
     } else if(e.target.hasAttribute('data-qlink')){
       const other=e.target.value;
       if(other&&byId(other)){
@@ -201,7 +229,7 @@ document.querySelectorAll('[data-qadd]').forEach(b=>b.addEventListener('click',(
   const base={hmi:'HMI',ews:'EWS',historian:'HIST',switch:'SW',firewall:'FW',server:'SRV'}[t];
   let n=1; while(proj.devices.some(d=>d.id===base+'-'+n)) n++;
   const d={id:base+'-'+n,type:t,name:base+'-'+n,x:120,y:120,
-    level:defaultLevel(t), px:9999};   // lands at the right end of its lane
+    purdueLevel:defaultLevel(t), px:9999};   // lands at the right end of its lane
   proj.devices.push(d); sel=d.id;
   hooks.project.save(); rebuild(); renderInspector(); hooks.onChange();
 }));

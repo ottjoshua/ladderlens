@@ -442,7 +442,7 @@ document.querySelectorAll('[data-padd]').forEach(b=>b.addEventListener('click',(
   let n=1; while(plant.devices.some(d=>d.id===base+'-'+n)) n++;
   const d={id:base+'-'+n,type:t,name:base+'-'+n,
     x:90+((plant.devices.length*40)%300),y:90+((plant.devices.length%5)*70),
-    level:defaultLevel(t),px:9999};   // also lands in its Purdue lane
+    purdueLevel:defaultLevel(t),px:9999};   // also lands in its Purdue lane
   if(t==='tank'){ d.level=0; d.level0=0; }
   if(t==='valve'){ d.maxFlow=5; d.posConst=0; }
   if(t==='pump'){ d.maxFlow=5; }
@@ -467,11 +467,11 @@ function plantExample(){
     {id:'LV-102',type:'valve',name:'LV-102',x:350,y:360,from:'TK-101',to:'DR-1',maxFlow:6,posConst:45},
     {id:'DR-1',type:'drain',name:'DRAIN',x:500,y:360},
     // network side: the same plant seen from the Purdue view
-    {id:'SW-1',type:'switch',name:'SW-1',x:120,y:120,level:2,px:100},
-    {id:'HMI-1',type:'hmi',name:'HMI-1',x:120,y:120,level:2,px:0},
-    {id:'EWS-1',type:'ews',name:'EWS-1',x:120,y:120,level:2,px:200},
-    {id:'HIST-1',type:'historian',name:'HIST-1',x:120,y:120,level:3,px:0},
-    {id:'FW-1',type:'firewall',name:'FW-1',x:120,y:120,level:3.5,px:0},
+    {id:'SW-1',type:'switch',name:'SW-1',x:120,y:120,purdueLevel:2,px:100},
+    {id:'HMI-1',type:'hmi',name:'HMI-1',x:120,y:120,purdueLevel:2,px:0},
+    {id:'EWS-1',type:'ews',name:'EWS-1',x:120,y:120,purdueLevel:2,px:200},
+    {id:'HIST-1',type:'historian',name:'HIST-1',x:120,y:120,purdueLevel:3,px:0},
+    {id:'FW-1',type:'firewall',name:'FW-1',x:120,y:120,purdueLevel:3.5,px:0},
   ];
   plant.connections=[
     {from:'PLC-1',to:'SW-1',proto:'EtherNet/IP'},

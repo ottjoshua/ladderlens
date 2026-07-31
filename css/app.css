@@ -207,8 +207,10 @@ header .scan{margin-top:0;flex:0 0 auto}
 }
 
 /* ---- Purdue view: level lanes, device cards, conduits ---- */
-#qcanvas{display:block;width:100%;background:var(--panel);border:1px solid #2b343c;border-radius:5px}
+#qcanvas{display:block;width:100%;background:var(--panel);border:1px solid #2b343c;border-radius:5px;
+  touch-action:none;user-select:none}
 .workbench #qcanvas{flex:0 0 auto}
+#purduewrap .workbench{overflow-x:auto}
 #qcanvas text{font-family:var(--mono);fill:var(--ink);pointer-events:none}
 #qcanvas .lane rect{fill:#12171b;stroke:#232c33}
 #qcanvas .lane.dmz rect{fill:#1d1712;stroke:#4a3524;stroke-dasharray:5 4}
