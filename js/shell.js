@@ -103,6 +103,13 @@ document.getElementById('resetbtn').addEventListener('click',()=>panel.reset());
 setInterval(()=>{ if(panel.isRunning()&&!document.hidden) panel.scanTick(); }, SCAN_MS);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) panel.clockReset(); });
 
+/* leaving the page: the active target keeps its latest program and values */
+window.addEventListener('beforeunload',()=>{
+  const t=store(activeTarget);
+  if(t&&booted){ t.program=panel.source(); t.inputs=panel.values(); }
+  project.save();
+});
+
 /* a file released anywhere else must not navigate the page away */
 document.addEventListener('dragover',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
 document.addEventListener('drop',e=>{ if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
